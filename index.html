@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en" data-design="paper">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>The Algorithm Is Not the Behavior</title>
+  <meta name="description" content="Leela Chess Zero's policy network often finds the winning move in its middle layers and then overrides it. Look-ahead still works; learned priors for safe play in the last layers win out. NeurIPS 2026 (oral)." />
+  <meta property="og:title" content="The Algorithm Is Not the Behavior" />
+  <meta property="og:description" content="Learned priors override look-ahead in a chess-playing neural network. NeurIPS 2026 (oral)." />
+  <meta property="og:type" content="website" />
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/site.css?v=20261008-16" />
+</head>
+<body>
+  <a class="sr-only sr-only--focusable" href="#tldr">Skip to summary</a>
+
+  <header class="topbar">
+    <div class="topbar__inner">
+      <a class="topbar__brand" href="#top">The Algorithm Is Not the Behavior</a>
+      <nav class="topbar__links" aria-label="Paper links">
+        <a class="pill" href="https://arxiv.org/abs/2508.21380">Paper</a>
+        <a class="pill" href="#" data-todo="code">Code</a>
+        <a class="pill" href="#bibtex">BibTeX</a>
+      </nav>
+    </div>
+  </header>
+
+  <nav class="sidenav" aria-label="Sections">
+    <ol>
+      <li><a href="#top">Overview</a></li>
+      <li><a href="#forgotten">Forgotten puzzles</a></li>
+      <li><a href="#lookahead">Look-ahead</a></li>
+      <li><a href="#priors">Safety priors</a></li>
+      <li><a href="#scope">Search &amp; scope</a></li>
+      <li><a href="#implications">Implications</a></li>
+      <li><a href="#more">More results</a></li>
+      <li><a href="#bibtex">Citation</a></li>
+    </ol>
+  </nav>
+
+  <main id="top">
+    <section class="hero">
+      <div class="wrap wrap--hero">
+        <p class="venue"><span class="venue__badge">NeurIPS 2026</span><span class="venue__oral">Oral</span></p>
+        <h1 class="title">
+          <span class="title__main">The Algorithm Is Not the Behavior</span>
+          <span class="title__sub">Learned Priors Override Look-Ahead in a Chess-Playing Neural Network</span>
+        </h1>
+        <p class="authors">
+          <span>Elias Sandmann<sup>1</sup></span>
+          <span>Sebastian Lapuschkin<sup>1,2</sup></span>
+          <span>Wojciech Samek<sup>1,3</sup></span>
+        </p>
+        <p class="affils"><sup>1</sup>Fraunhofer HHI &nbsp; <sup>2</sup>TU Dublin &nbsp; <sup>3</sup>TU Berlin</p>
+        <div class="buttons">
+          <a class="btn btn--solid" href="https://arxiv.org/abs/2508.21380">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h9l5 5v15H6zM14 3v5h5" /></svg>Paper</a>
+          <a class="btn" href="#" data-todo="code">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5" /></svg>Code</a>
+          <a class="btn" href="#" data-todo="poster">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h18v13H3zM8 21h8M12 17v4" /></svg>Poster</a>
+          <a class="btn" href="#" data-todo="talk">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>Talk</a>
+          <a class="btn" href="#bots">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21h6M12 3a3 3 0 0 0-2 5.2L8 16h8l-2-7.8A3 3 0 0 0 12 3z" /></svg>Play the layers</a>
+          <a class="btn" href="#bibtex">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4H5v16h2M17 4h2v16h-2" /></svg>BibTeX</a>
+        </div>
+      </div>
+
+      <div class="wrap wrap--figure">
+        <figure class="figure figure--hero" id="fig1">
+          <div id="lens-figure" class="lens-fig-host"></div>
+          <div class="hero-picker">
+            <span class="hero-picker__label">Forgotten puzzles from the paper</span>
+            <div class="chips" id="hero-chips" role="radiogroup" aria-label="Puzzle"></div>
+          </div>
+        </figure>
+      </div>
+    </section>
+
+    <section class="wrap prose" id="tldr">
+      <div class="tldr">
+        <h2 class="tldr__k">In short</h2>
+        <p>
+          Mechanistic interpretability has found learned algorithms inside neural networks, including look-ahead in
+          <a href="https://leela-interp.github.io/">Leela Chess Zero</a>. We ask whether finding such an algorithm tells us what the network will do.
+          Reading out Leela's policy layer by layer, we find puzzles whose solution, often a checkmate, is found in the
+          middle layers and then <em>overridden</em> at the output. On these <em>forgotten puzzles</em>, look-ahead is still present
+          and causally involved. What changes is in the last layers, which shift toward safe, quiet play. Steering against that shift
+          recovers most of the forgotten solutions.
+        </p>
+        <p class="tldr__punch">A model can internally solve a problem and still output the wrong answer.</p>
+      </div>
+    </section>
+
+    <section class="wrap prose" id="setup">
+      <h2>Reading every layer of Leela</h2>
+      <p>
+        Leela's policy network is an encoder-only transformer that treats each of the 64 squares as a token and picks a move in a single
+        forward pass, with no search. We extend the <em>logit lens</em> to its Post-LN architecture: to read the policy after layer
+        <i>ℓ</i>, we zero-ablate every later sublayer and keep the final normalisation, so the unchanged policy head decodes the intermediate
+        residual stream. Every layer yields a playable chess policy, and its strength rises with depth, from about 350 Elo at the
+        input embedding to 2,268 for the full network (<a href="#more">tournament</a>).
+      </p>
+    </section>
+    <section class="wrap wrap--figure" id="fig2-section">
+      <figure class="figure figure--hero figure--fig2">
+        <div id="network-figure"></div>
+        <figcaption>Every layer's read-out plays recognisable chess, and the kind of chess changes with depth.
+          Hover a layer of the network to see its top moves.</figcaption>
+      </figure>
+    </section>
+
+    <section class="wrap prose finding" id="forgotten">
+      <p class="finding__n">Finding 1</p>
+      <h2>Correct solutions appear, then disappear</h2>
+      <div class="split">
+        <div>
+          <p>
+            On 10,000 Lichess puzzles, the full policy solves 88.6%. Among the rest are 449 puzzles (4.5%) that some
+            intermediate layer solves completely and the final output does not. We call them <em>forgotten puzzles</em>.
+            Over the layers, the share of puzzles solved by <em>some</em> layer runs well ahead of the share solved <em>at</em> each layer.
+          </p>
+          <p>
+            For mechanistic analyses we build a dataset of <span class="num">8,648</span> forgotten puzzles with a single clearly winning line,
+            filtered like Jenner et al.'s look-ahead dataset. The pattern is consistent:
+          </p>
+          <ul class="facts">
+            <li><span class="facts__v">87%</span><span>involve a sacrifice. The solution is a check in 77% of puzzles and a capture in 78%.</span></li>
+            <li><span class="facts__v">68%</span><span>of the time the network plays a quiet move instead.</span></li>
+            <li><span class="facts__v">46%</span><span>are mate puzzles, including mates in two.</span></li>
+            <li><span class="facts__v">97%</span><span>of the time the value head prefers the position after the correct move.</span></li>
+          </ul>
+        </div>
+        <figure class="figure figure--paper figure--narrow">
+          <img src="assets/figures/puzzle_solve_rates.png" alt="Puzzle solve rate by layer: solved at layer L, solved by any layer up to L, and first solved at layer L. The hatched gap between the first two curves marks solutions found and later lost." loading="lazy" width="1437" height="1087" />
+          <figcaption>Solve rate at each layer (blue) vs by any earlier layer (green). The hatched region holds solutions that were found and then lost.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="wrap prose finding" id="lookahead">
+      <p class="finding__n">Finding 2</p>
+      <h2>Look-ahead still runs on forgotten puzzles</h2>
+      <p>
+        <b>What look-ahead means here.</b> Leela picks its move in a single forward pass, with no search.
+        <a href="https://openreview.net/forum?id=8zg9sO4ttV">Jenner et al. (2024)</a> showed that it still looks ahead internally:
+        in the Figure&nbsp;1 puzzle, while choosing <span class="mono">…Qxf1+</span>, the network already represents the follow-up
+        <span class="mono">…Rd1#</span> on its target square, d1, and an attention head in layer 12 (L12H12) moves that information
+        to the first move's square, f1. The first move is judged partly by the move it sets up.
+      </p>
+      <p>
+        Is the algorithm failing? We repeat <a href="https://leela-interp.github.io/">Jenner et al.'s</a> look-ahead analyses on the forgotten set.
+        The future moves of the correct line are <b>represented, causally important and linearly decodable</b>, as on puzzles the network solves.
+        Look-ahead is present and contributes; what the final layers do with it is the difference.
+      </p>
+      <figure class="figure figure--paper figure--wide">
+        <img src="assets/figures/forgotten_act_patching.png" alt="Activation patching on forgotten puzzles: the effect of patching the third-move target square stands out in the middle layers compared with other squares." loading="lazy" width="2400" height="640" />
+        <div class="figure__row">
+          <img src="assets/figures/forgotten_head_ablation.png" alt="Ablating the single attention entry of head L12H12 from the first-move target to the third-move target reduces the solution's log-odds far more than any other entry." loading="lazy" width="2070" height="1082" />
+          <img src="assets/figures/forgotten_probing.png" alt="A bilinear probe predicts the third move of the solution from intermediate activations with high accuracy in the middle layers, far above a randomly initialised model." loading="lazy" width="1438" height="1087" />
+        </div>
+        <figcaption>
+          <b>Top:</b> patching the 3rd-move target square matters most in middle layers.
+          <b>Bottom left:</b> one attention entry of head L12H12 (1st → 3rd move target) beats all 4,095 others in <span class="num">62%</span> of forgotten puzzles.
+          <b>Bottom right:</b> a bilinear probe predicts the 3rd move with <span class="num">79%</span> accuracy at layer 12 (solved puzzles: <span class="num">90%</span>).
+        </figcaption>
+      </figure>
+    </section>
+
+    <section class="wrap prose finding" id="priors">
+      <p class="finding__n">Finding 3</p>
+      <h2>Late layers prefer safe play, and steering against it recovers solutions</h2>
+      <p>
+        Since the network swaps forcing sacrifices for quiet moves, we measure which chess concepts each layer's policy prefers, using
+        Stockfish's hand-crafted evaluation terms as interpretable proxies. Late layers move toward <em>own king safety</em> and
+        <em>fewer threats from the opponent</em>, which we call <em>safety priors</em>. Gradient-based steering against these concepts
+        after layer 13 raises the solve rate on held-out puzzles from <span class="num">88.5%</span> to <span class="num">92.3%</span> and recovers
+        <span class="num">63%</span> of forgotten puzzles. On the separate forgotten dataset it recovers <span class="num">72%</span>.
+        Random directions of the same norm recover about <span class="num">10%</span>.
+      </p>
+      <figure class="figure figure--paper">
+        <div class="figure__row figure__row--fig6">
+          <img src="assets/figures/concept_preferences_panel.png" alt="Concept preference by layer for four safety concepts: own king safety and opponent threats shift in the safe direction in the last layers." loading="lazy" width="1299" height="1076" />
+          <img src="assets/figures/steering_effects_panel.png" alt="Held-out solve rate after steering at each layer for the four safety concepts, compared with the unsteered model and random directions; the largest gain is late in the network." loading="lazy" width="1243" height="1076" />
+          <img class="figure__legend" src="assets/figures/concept_legend.png" alt="Legend: king safety (opponent), threats (mine), king safety (mine), threats (opponent)." loading="lazy" width="648" height="474" />
+        </div>
+        <figcaption><b>Left:</b> concept preference of each layer's policy. <b>Right:</b> held-out solve rate when steering at each layer (band: spread over 200 random 50/50 splits).</figcaption>
+      </figure>
+
+      <h3 class="explorer-title">Try it: steer a forgotten puzzle</h3>
+      <p>
+        These are the exact interventions from the paper's sweep. Some directions make the output less peaked, others do not.
+        For every setting we show the entropy of the distribution, 50 random directions of the same norm, and how the same setting does
+        across all forgotten puzzles, so you can check whether a recovery comes from the concept or from noise.
+      </p>
+      <div id="steer-explorer"></div>
+      <p class="note">
+        The examples are selected. Across the held-out evaluation, the paper's setting recovers <span class="num">62.9 ± 3.4%</span> of forgotten puzzles.
+        Of the 353 forgotten puzzles in the 10k set whose first move is wrong, 37 are recovered by none of the 32 settings shown here (four directions × eight strengths),
+        such as <span class="mono">3aGwk</span>, <span class="mono">CkzuP</span> and <span class="mono">LktHH</span>.
+      </p>
+    </section>
+
+    <section class="wrap prose" id="scope">
+      <h2>What about search?</h2>
+      <div class="callout">
+        <p>
+          Our claims concern Leela's <b>policy network</b> on its own. In deployment, Leela runs Monte Carlo tree search, and its value head
+          rates the positions after the correct move correctly. With search, the network finds almost all forgotten solutions:
+          <span class="num">97.5%</span> at 800 nodes. Search can fix what the policy overrides, but it has to spend nodes doing so.
+          A policy that read out the penultimate layers needs fewer of them.
+        </p>
+      </div>
+    </section>
+
+    <section class="wrap prose" id="implications">
+      <h2>Why this matters beyond chess</h2>
+      <p>
+        Finding a learned algorithm inside a network does not tell us that the network's behavior follows it.
+        In Leela, a working look-ahead computation and a learned preference for safe play come from the same likelihood-based
+        training, and in tactical positions the preference wins. The right answer is computed internally; it just doesn't reach the output.
+        The preference itself is a sensible generalisation, since quiet moves are usually right. It fails exactly where the position calls for a sacrifice.
+      </p>
+      <p>
+        For interpretability, this means that a model's capabilities can exceed what its outputs show, and that layer-wise readouts
+        can find the gap. It also means mechanistic understanding can suggest targeted fixes, here a single steering direction. Similar
+        conflicts between computed solutions and learned priors are a plausible failure mode for other models, including language models that reason step by step.
+      </p>
+    </section>
+
+    <section class="wrap prose" id="faq">
+      <h2>Questions we get</h2>
+      <details class="qa">
+        <summary>Is steering just adding noise until the quiet move loses its lead?</summary>
+        <p>
+          No. Flattening a distribution, for example by raising its temperature, never changes which move is on top, so it cannot solve a puzzle.
+          Steering changes the ranking: it raises the solve rate on <em>all</em> puzzles from 88.5% to 92.3% (held-out), which noise would lower.
+          Random directions of the same norm recover about 10% of forgotten puzzles. And steering along <em>king safety (opp.)</em> recovers 57% of them
+          with no change in the median entropy of the output. The explorer above shows the full distribution and its entropy for each case.
+        </p>
+      </details>
+      <details class="qa">
+        <summary>Doesn't the readout decide what counts as "solved"?</summary>
+        <p>
+          The logit lens decodes intermediate layers with the network's own policy head, without training a decoder. A learned decoder fitted
+          to match the final output would remove the phenomenon by construction. Keeping the normalisation biases instead of zeroing them leaves
+          97.4% of forgotten puzzles unchanged, and the intermediate policies play coherent chess (the layer bots below).
+        </p>
+      </details>
+      <details class="qa">
+        <summary>Is "safety prior" a mechanism inside the network?</summary>
+        <p>
+          We do not claim a modular safety mechanism. King safety and threat terms are correlated proxies for a common
+          conservative-play axis: avoiding sacrifices, keeping material, preferring quiet moves. The steering result shows that moving
+          along this axis is enough to restore most overridden solutions.
+        </p>
+      </details>
+    </section>
+
+    <section class="wrap prose" id="more">
+      <h2>More results</h2>
+      <details class="more" open>
+        <summary>Playing strength of every layer</summary>
+        <div id="elo-chart" class="elo"></div>
+        <p class="note">
+          Round-robin tournament between the policies read out at every layer (argmax play, 200 ECO openings), anchored to an Lc0 policy network.
+          Strength rises quickly through layer 5, plateaus until about layer 10 and climbs steeply in the last layers.
+        </p>
+      </details>
+      <details class="more" id="bots">
+        <summary>Play against a layer on Lichess</summary>
+        <p>
+          Every layer's policy plays on Lichess as its own bot, from the input embedding to the full network. Challenge one and see what
+          "layer 9 chess" looks like.
+        </p>
+        <div class="bots" id="bot-list"></div>
+      </details>
+      <details class="more">
+        <summary>Solve rates by puzzle rating</summary>
+        <figure class="figure figure--paper">
+          <img src="assets/figures/puzzle_solve_rates_by_rating.png" alt="Puzzle solve rate across layers, separately for puzzle rating bands; harder puzzles gain most in the final layers." loading="lazy" width="2400" height="1042" />
+        </figure>
+      </details>
+    </section>
+
+    <section class="wrap prose" id="bibtex">
+      <h2>Citation</h2>
+      <div class="bib">
+        <button class="btn btn--small bib__copy" type="button">Copy</button>
+<pre><code id="bib-text">@inproceedings{sandmann2026algorithm,
+  title     = {The Algorithm Is Not the Behavior: Learned Priors
+               Override Look-Ahead in a Chess-Playing Neural Network},
+  author    = {Sandmann, Elias and Lapuschkin, Sebastian and Samek, Wojciech},
+  booktitle = {Advances in Neural Information Processing Systems},
+  year      = {2026},
+  eprint    = {2508.21380},
+  archivePrefix = {arXiv}
+}</code></pre>
+      </div>
+      <h3>Acknowledgments</h3>
+      <p class="small">
+        This work builds on the code and inference framework of <a href="https://leela-interp.github.io/">Jenner et al. (2024)</a> and
+        <a href="https://github.com/google-deepmind/searchless_chess">Ruoss et al. (2024)</a>. It was supported by the Federal Ministry of Research,
+        Technology and Space (BMFTR) as grants [BIFOLD (01IS18025A, 01IS180371I), xJuRAG (16IS25015B)]; the European Union's Horizon Europe research
+        and innovation programme as grant ACHILLES (101189689); and the German Research Foundation (DFG) as research unit DeSBi [KI-FOR 5363] (459422098).
+      </p>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <p>Elias Sandmann · Sebastian Lapuschkin · Wojciech Samek · Fraunhofer Heinrich Hertz Institute</p>
+      <p class="small">Chess pieces by Colin M.L. Burnett (via python-chess). Board style follows the paper's figures.</p>
+    </div>
+  </footer>
+
+  <script src="data/pieces.js?v=20261008-16"></script>
+  <script src="data/index.js?v=20261008-16"></script>
+  <script src="data/steering_aggregates.js?v=20261008-16"></script>
+  <script src="data/figure2.js?v=20261008-16"></script>
+  <script src="assets/js/board.js?v=20261008-16"></script>
+  <script src="assets/js/steer-data.js?v=20261008-16"></script>
+  <script src="assets/js/lens-figure.js?v=20261008-16"></script>
+  <script src="assets/js/network-figure.js?v=20261008-16"></script>
+  <script src="assets/js/steer.js?v=20261008-16"></script>
+  <script src="assets/js/site.js?v=20261008-16"></script>
+</body>
+</html>
