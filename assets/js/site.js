@@ -110,18 +110,18 @@
     const { el } = window.LLLBoard;
     const W = 760, H = 300, X0 = 56, X1 = 740, Y0 = 20, Y1 = 250;
     const x = (k) => X0 + (k / 15) * (X1 - X0);
-    const y = (e) => Y1 - (e / 2400) * (Y1 - Y0);
+    const y = (e) => Y1 - (e / 2600) * (Y1 - Y0); // headroom above the anchor for the phase labels
     const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Elo of the policy read out at each layer, from 351 at the input to 2268 for the full network." });
     [[0, 6, "early gains"], [6, 11, "plateau"], [11, 15, "late gains"]].forEach(([a, b, t], i) => {
       el("rect", { x: x(a), y: Y0, width: x(b) - x(a), height: Y1 - Y0, class: i % 2 ? "elo__phase elo__phase--alt" : "elo__phase" }, svg);
-      el("text", { x: (x(a) + x(b)) / 2, y: Y0 + 16, class: "lf-tick lf-tick--sm", "text-anchor": "middle" }, svg).textContent = t;
+      el("text", { x: (x(a) + x(b)) / 2, y: Y0 + 14, class: "lf-tick lf-tick--sm", "text-anchor": "middle" }, svg).textContent = t;
     });
     [0, 500, 1000, 1500, 2000].forEach((e) => {
       el("line", { x1: X0, x2: X1, y1: y(e), y2: y(e), class: "lf-grid" }, svg);
       el("text", { x: X0 - 8, y: y(e), class: "lf-tick", "text-anchor": "end", "dominant-baseline": "central" }, svg).textContent = e.toLocaleString("en-US");
     });
     el("line", { x1: X0, x2: X1, y1: y(ANCHOR), y2: y(ANCHOR), class: "elo__anchor" }, svg);
-    el("text", { x: X0 + 6, y: y(ANCHOR) - 6, class: "lf-tick lf-tick--sm" }, svg).textContent = `Lc0 policy anchor (${ANCHOR})`;
+    el("text", { x: X0 + 6, y: y(ANCHOR) + 14, class: "lf-tick lf-tick--sm" }, svg).textContent = `Lc0 policy anchor (${ANCHOR})`;
     el("polyline", { points: ELO.map((e, k) => `${x(k)},${y(e)}`).join(" "), class: "elo__line" }, svg);
     const tip = document.createElement("div");
     tip.className = "lens-fig__tip elo__tip";
