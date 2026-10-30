@@ -369,7 +369,6 @@
       if (this.valueRows) this.resetValue();
       const mate = (data.themes.find((t) => /^mateIn\d$/.test(t)) || "").replace("mateIn", "");
       this.head.innerHTML = describePuzzle(data, mate);
-      this.mateIn = mate;
       this.describeLookahead();
       this.drawStatic();
       this.drawValueCards();
@@ -1081,24 +1080,12 @@
       if (!done) return;
       const d = this.data, o = this.outcome(), L = this.laActive();
       if (L && !this.steerActive() && !this.solved) return; // the unsteered network misses the solution either way
-      let icon = "✓", text, cls = "is-good";
-      if (this.solved && !L) {
-        if (o.first && o.line !== false) text = "Still solved";
-        else if (o.first) { text = `Plays ${moveLabel(d, d.m_star)}, misses the follow-up`; cls = "is-mid"; }
-        else { icon = "✗"; text = "Solution lost"; cls = "is-bad"; }
-      } else if (L) {
-        if (!o.foundWithLA) { icon = "✗"; text = "Still not the solution"; cls = "is-bad"; }
-        else if (o.first) {
-          // a flat output can keep the solution on top by a hair: then say how little it gets
-          const p = this.endValue(d.m_star);
-          text = p < 0.2 ? `Still top without look-ahead, at ${pct(p)}` : "Still found without look-ahead";
-          cls = "is-mid";
-        }
-        else { icon = "✗"; text = "Not found without look-ahead"; cls = "is-bad"; }
-      } else if (o.first && this.endValue(d.m_star) < 0.2) { text = `Top move, but only ${pct(this.endValue(d.m_star))}`; cls = "is-mid"; }
-      else if (o.first && o.line !== false) text = this.mateIn ? `Mate in ${this.mateIn} found` : "Puzzle solved";
-      else if (o.first) { text = `Plays ${moveLabel(d, d.m_star)}, misses the follow-up`; cls = "is-mid"; }
-      else { icon = "✗"; text = "Still not the solution"; cls = "is-bad"; }
+      // the solution on top (and, where known, the whole line): "Puzzle solved", however small its probability
+      let icon = "✓", text = "Puzzle solved", cls = "is-good";
+      const lost = this.solved ? "Solution lost" : "Still not the solution";
+      if (L && !o.first) { icon = "✗"; text = o.foundWithLA ? "Not found without look-ahead" : lost; cls = "is-bad"; }
+      else if (!o.first) { icon = "✗"; text = lost; cls = "is-bad"; }
+      else if (o.line === false) { text = `Plays ${moveLabel(d, d.m_star)}, misses the follow-up`; cls = "is-mid"; }
       b.classList.add(cls);
       // to the left of the pills, in the free row above the chart
       const label = `${icon}  ${text}`;
@@ -1132,22 +1119,19 @@
       }
     }
 
+    // Confetti whenever the puzzle is solved; the dun-dun when an intervention took the solution away
+    // (look-ahead removal, or steering a solved puzzle); a shake when it was never found.
     celebrate() {
+      if (this.laActive() && !this.steerActive() && !this.solved) return; // never found, nothing to mark (no badge either)
       const o = this.outcome();
-      if (this.laActive()) {
-        if (o.foundWithLA && !o.first) this.lostSolution(); // look-ahead removal took the solution away
-        return;
-      }
-      if (this.solved) { // solved before: steering can only keep or lose it
-        if (!o.first) this.lostSolution();
-        return;
-      }
       if (o.first) {
+        if (o.line === false) return; // the first move only
         const pt = this.svg.createSVGPoint();
         pt.x = xOf(15); pt.y = yOf(this.endValue(this.data.m_star));
         const sp = pt.matrixTransform(this.svg.getScreenCTM());
-        if (o.line !== false && this.endValue(this.data.m_star) >= 0.2) confetti(sp.x, sp.y); // not for a flattened output
-      } else this.shakeOutput();
+        confetti(sp.x, sp.y);
+      } else if (this.laActive() ? o.foundWithLA : this.solved) this.lostSolution();
+      else this.shakeOutput();
     }
     // The solution was there and an intervention took it away: two beats at the output. Red rings from
     // the solution's end point, the output board flashes red and drops, and the two-note sting.
