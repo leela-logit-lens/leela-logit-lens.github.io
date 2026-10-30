@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/css/site.css?v=20261030-5" />
+  <link rel="stylesheet" href="assets/css/site.css?v=20261030-6" />
 </head>
 <body>
   <a class="sr-only sr-only--focusable" href="#tldr">Skip to summary</a>
@@ -186,7 +186,6 @@
         puzzles from <span class="num">88.6%</span> to <span class="num">92.4%</span>, recovers <span class="num">62%</span> of the forgotten
         puzzles and solves <span class="num">34%</span> of the puzzles that no layer had solved. On the separate forgotten dataset it
         recovers <span class="num">72%</span>.
-        Random directions of the same norm recover about <span class="num">10%</span>.
       </p>
       <figure class="figure figure--paper">
         <div class="figure__row figure__row--fig6">
@@ -262,16 +261,15 @@
         <p>
           No. Flattening a distribution, for example by raising its temperature, never changes which move is on top, so it cannot solve a puzzle.
           Steering changes the ranking: it raises the solve rate on <em>all</em> puzzles from 88.6% to 92.4% (held-out), which noise would lower.
-          Random directions of the same norm recover about 10% of forgotten puzzles. And steering along <em>king safety (opp.)</em> recovers 57% of them
+          Steering along <em>king safety (opp.)</em> recovers 57% of them
           with no change in the median entropy of the output. The explorer above shows the full distribution and its entropy for each case.
         </p>
       </details>
       <details class="qa">
         <summary>Doesn't the readout decide what counts as "solved"?</summary>
         <p>
-          The logit lens decodes intermediate layers with the network's own policy head, without training a decoder. A learned decoder fitted
-          to match the final output would remove the phenomenon by construction. Keeping the normalisation biases instead of zeroing them changes
-          the solve rate by at most 2.7 percentage points at any layer and leaves the forgotten puzzles nearly unchanged, and the intermediate policies play coherent chess (the layer bots below).
+          The logit lens decodes intermediate layers with the network's own policy head, without training a decoder. A learned decoder fitted to match the final output would remove the phenomenon by construction. The intermediate
+          policies also play coherent chess (the layer bots below).
         </p>
       </details>
       <details class="qa">
@@ -378,18 +376,18 @@
     </div>
   </footer>
 
-  <script src="data/pieces.js?v=20261030-5"></script>
-  <script src="data/index.js?v=20261030-5"></script>
-  <script src="data/steering_aggregates.js?v=20261030-5"></script>
-  <script src="data/figure2.js?v=20261030-5"></script>
-  <script src="assets/js/board.js?v=20261030-5"></script>
-  <script src="assets/js/steer-data.js?v=20261030-5"></script>
-  <script src="assets/js/lens-figure.js?v=20261030-5"></script>
-  <script src="assets/js/network-figure.js?v=20261030-5"></script>
-  <script src="assets/js/steer.js?v=20261030-5"></script>
-  <script src="assets/js/site.js?v=20261030-5"></script>
-  <script src="data/lc0-moves.js?v=20261030-5"></script>
-  <script src="assets/js/lc0-input.js?v=20261030-5"></script>
-  <script src="assets/js/play.js?v=20261030-5"></script>
+  <script src="data/pieces.js?v=20261030-6"></script>
+  <script src="data/index.js?v=20261030-6"></script>
+  <script src="data/steering_aggregates.js?v=20261030-6"></script>
+  <script src="data/figure2.js?v=20261030-6"></script>
+  <script src="assets/js/board.js?v=20261030-6"></script>
+  <script src="assets/js/steer-data.js?v=20261030-6"></script>
+  <script src="assets/js/lens-figure.js?v=20261030-6"></script>
+  <script src="assets/js/network-figure.js?v=20261030-6"></script>
+  <script src="assets/js/steer.js?v=20261030-6"></script>
+  <script src="assets/js/site.js?v=20261030-6"></script>
+  <script src="data/lc0-moves.js?v=20261030-6"></script>
+  <script src="assets/js/lc0-input.js?v=20261030-6"></script>
+  <script src="assets/js/play.js?v=20261030-6"></script>
 </body>
 </html>

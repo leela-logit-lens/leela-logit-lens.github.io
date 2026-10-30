@@ -179,7 +179,7 @@
       const H0 = entropy(base), H1 = entropy(st), Hmax = Math.log(d.legal.length);
       const solved = topSteer === iStar;
       const rs = ST.randomSummary(d, raw);
-      const agg = ST.aggregate(this.concept, raw), ragg = ST.aggregate("random", raw);
+      const agg = ST.aggregate(this.concept, raw);
       const A = window.LLL_AGG;
       const nRandTop = rs ? rs.filter((r) => r["15"].top === d.m_star).length : null;
       const medP = rs ? median(rs.map((r) => r["15"].p_star)) : null;
@@ -207,8 +207,8 @@
           <div class="stat__s">${rs ? `put the solution on top · median P(solution) ${pct1(medP)}, median entropy ${medH.toFixed(2)}` : "set a strength to compare"}</div>
         </div>
         <p class="steer__agg">${agg ? (rnd
-          ? `Across all ${A.n_forgotten} forgotten puzzles of the 10k set, random directions at this norm recover ${Math.round(agg.forgotten * 100)}% on average.`
-          : `This exact setting, across all ${A.n_forgotten} forgotten puzzles of the 10k set: <b>${Math.round(agg.forgotten * 100)}% recovered</b> (random directions: ${Math.round(ragg.forgotten * 100)}%); ` +
+          ? "A random direction with the same norm as the concept directions, for comparison."
+          : `This exact setting, across all ${A.n_forgotten} forgotten puzzles of the 10k set: <b>${Math.round(agg.forgotten * 100)}% recovered</b>; ` +
             `solve rate on all puzzles ${(A.baseline.solve * 100).toFixed(1)}% → ${(agg.solve * 100).toFixed(1)}%; median entropy change ${agg.dH_all >= 0 ? "+" : "−"}${Math.abs(agg.dH_all).toFixed(2)} nats.`)
           : "Move the slider to steer. Right of 0 reverses the late-layer shift toward safe play; left of 0 strengthens it."}</p>`;
     }
