@@ -373,10 +373,16 @@
     // The look-ahead panel's text for this puzzle: which follow-up move, and how it is removed.
     describeLookahead() {
       const d = this.data, la = d.lookahead;
-      this.root.classList.toggle("has-la", !!la && d.pv.length >= 3);
-      if (!la || d.pv.length < 3) return;
+      // Offered only where the intervention removes look-ahead and nothing else: the follow-up's square must
+      // differ from the first move's square, and no move the network is weighing now may land on it (the
+      // patch of that square would also knock out that move, e.g. the rook lift Rh6 in Figure 2's puzzle).
+      const sq3 = d.pv.length >= 3 ? d.pv[2].slice(2, 4) : null;
+      const clean = !!la && !!sq3 && sq3 !== d.pv[0].slice(2, 4) &&
+        d.legal.every((u) => u === d.m_star || u.slice(2, 4) !== sq3 || Math.max(...d.probs[u].slice(10, 15)) < 0.1);
+      this.root.classList.toggle("has-la", clean);
+      if (!clean) return;
       const third = (d.turn === "b" ? "…" : "") + d.pv_san[2];
-      const sq1 = d.pv[0].slice(2, 4), sq3 = d.pv[2].slice(2, 4);
+      const sq1 = d.pv[0].slice(2, 4);
       const layers = `${la.patch_layers[0]}–${la.patch_layers[la.patch_layers.length - 1]}`;
       this.laWhat.innerHTML = `From layer ${la.from_layer} on, the network can no longer use what it computes about the follow-up <span class="mono">${third}</span>.`;
       const corr = describeCorruption(d.fen, la.corruption.fen);
@@ -840,7 +846,7 @@
       return this.steer.on && this.root.classList.contains("is-complete");
     }
     laActive() {
-      return this.la.on && !!this.data.lookahead && this.root.classList.contains("is-complete");
+      return this.la.on && this.root.classList.contains("has-la") && this.root.classList.contains("is-complete");
     }
     steerDist(readout) {
       const ST = window.LLLSteer, st = this.steer;
