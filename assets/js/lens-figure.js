@@ -86,6 +86,28 @@
     requestAnimationFrame(frame);
   }
 
+  // "Dun-dun" for a lost solution: two low notes (Web Audio, quiet; only ever after the reader's own click).
+  let audio = null;
+  function sting() {
+    try {
+      audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+      const t0 = audio.currentTime + 0.02;
+      [[196, 0, 0.28], [146.8, 0.38, 0.85]].forEach(([f, at, len]) => {
+        [[f, 0.14], [f / 2, 0.1]].forEach(([freq, peak]) => { // the note and its lower octave, for weight
+          const o = audio.createOscillator(), g = audio.createGain();
+          o.type = "triangle";
+          o.frequency.value = freq;
+          g.gain.setValueAtTime(0, t0 + at);
+          g.gain.linearRampToValueAtTime(peak, t0 + at + 0.015);
+          g.gain.exponentialRampToValueAtTime(0.001, t0 + at + len);
+          o.connect(g).connect(audio.destination);
+          o.start(t0 + at);
+          o.stop(t0 + at + len + 0.05);
+        });
+      });
+    } catch (e) { /* no audio: the visual beats remain */ }
+  }
+
   // "A chess puzzle with a single winning move: Black mates in two, starting with a queen sacrifice: 1…Qxf1+ 2.Kxf1 Rd1#."
   function describePuzzle(d, mate) {
     const side = d.turn === "b" ? "Black" : "White";
@@ -317,14 +339,25 @@
       this.laNote = (extra && extra.laNote) || null;
       this.pause();
       this.data = data;
-      const peak = data.probs[data.m_star].slice(0, 15).reduce((b, p, k, a) => (p > a[b] ? k : b), 0);
+      // A solved example (data.solved): m_hat is then the solution's main contender before the output,
+      // not the played move. Steering and look-ahead removal then show whether the solution survives.
+      this.solved = !!data.solved;
+      this.root.classList.toggle("is-solved", this.solved);
+      this.root.classList.toggle("no-steer", !data.steering);
+      const peakOf = (u) => data.probs[u].slice(0, 15).reduce((b, p, k, a) => (p > a[b] ? k : b), 0);
+      const peak = peakOf(data.m_star);
       this.peakK = peak;
-      // early layer, the solution's peak (if it lies strictly between), output
-      this.snapshots = snapshots || [3, peak > 3 && peak < 15 ? peak : 10, 15];
+      // early layer, the solution's peak (solved: the rival's peak) if it lies strictly between, output;
+      // a rival that peaks early is shown at its peak, then layer 9
+      const mid = this.solved ? peakOf(data.m_hat) : peak;
+      this.snapshots = snapshots || (this.solved && mid <= 6 ? [mid, 10, 15] : [3, mid > 3 && mid < 15 ? mid : 10, 15]);
       this.svg.setAttribute("aria-label",
         `Probability of each legal move across the layers of Leela's policy network for puzzle ${data.id}. ` +
         `The solution ${data.san[data.m_star]} peaks at ${pct(data.probs[data.m_star][peak])} at ${layerName(peak)} ` +
-        `and ends at ${pct(data.probs[data.m_star][15])}; the played move ${data.san[data.m_hat]} ends at ${pct(data.probs[data.m_hat][15])}.`);
+        `and ends at ${pct(data.probs[data.m_star][15])}; ` +
+        (this.solved
+          ? `its main contender ${data.san[data.m_hat]} peaks at ${pct(data.probs[data.m_hat][mid])} at ${layerName(mid)}.`
+          : `the played move ${data.san[data.m_hat]} ends at ${pct(data.probs[data.m_hat][15])}.`));
       this.steer.on = false;
       this.la.on = false;
       if (this.valueRows) this.resetValue();
@@ -411,7 +444,7 @@
       if (!LEGEND.row) el("text", { x: 0, y: 0, class: "lf-legend-title" }, lg).textContent = "Move";
       const items = [
         [COL.star, `${moveLabel(d, d.m_star)}`, "solution"],
-        [COL.hat, `${moveLabel(d, d.m_hat)}`, "played"],
+        [COL.hat, `${moveLabel(d, d.m_hat)}`, this.solved ? "other contender" : "played"],
         [COL.other, LEGEND.row ? "other moves" : "other legal moves", ""],
       ];
       items.forEach(([c, a, b], i) => {
@@ -465,9 +498,13 @@
       // Where the solution first becomes the top move. Phases as in the paper: early (through
       // layer 5, K <= 6), middle (through layer 10, K <= 11), late.
       const pStar = d.probs[d.m_star];
+      // solved: how many read-outs in a row, up to the output, the solution has been the top move
+      let run = 0;
+      while (run < 16 && d.legal.every((u) => d.probs[u][15 - run] <= pStar[15 - run])) run++;
       this.findK = -1;
       for (let k = 0; k < 15 && this.findK < 0; k++) if (d.legal.every((u) => d.probs[u][k] <= pStar[k])) this.findK = k;
       this.annFind = el("g", { class: "lf-ann lf-ann--find" }, svg);
+      if (this.solved && run < 5) this.findK = -1; // solved: only the story "found early and kept"
       if (this.findK >= 0) {
         const kf = this.findK, phase = kf <= 6 ? "Early" : kf <= 11 ? "Middle" : "Late";
         const ax = xOf(kf), ay = yOf(pStar[kf]);
@@ -490,7 +527,7 @@
       // The solution's peak, if it is a separate moment (well after the find). No numbers: the axis
       // shows the value; the note carries the story (find → most confident → overridden).
       this.annPeak = el("g", { class: "lf-ann lf-ann--peak" }, svg);
-      this.showPeak = this.peakK >= 3 && this.peakK <= 14 && this.peakK - Math.max(this.findK, 0) >= 3;
+      this.showPeak = !this.solved && this.peakK >= 3 && this.peakK <= 14 && this.peakK - Math.max(this.findK, 0) >= 3;
       if (this.showPeak) {
         const pk = this.peakK, late = pk >= 12; // peak in the last three read-outs before the output
         const px = xOf(pk), py = yOf(pStar[pk]);
@@ -506,15 +543,24 @@
       const ps = d.probs[d.m_star], ph = d.probs[d.m_hat];
       // crossing between K=14 and K=15 (or the output point if the lines do not cross there)
       const a0 = ps[14] - ph[14], a1 = ps[15] - ph[15];
-      const tc = a0 > 0 && a1 < 0 ? a0 / (a0 - a1) : 1;
+      const tc = a0 * a1 < 0 ? a0 / (a0 - a1) : 1;
       const cxp = xOf(14 + tc), cyp = yOf(ps[14] + (ps[15] - ps[14]) * tc);
-      const ox = xOf(COMPACT ? 9.4 : 11.2), oy = yOf(COMPACT ? 0.9 : 0.43);
+      // solved puzzles' curves vary more: put the note at the height where no line passes under it
+      let oyP = COMPACT ? 0.9 : 0.43;
+      if (this.solved) {
+        const ks = COMPACT ? [7, 8, 9] : [9, 10, 11];
+        const clear = (c) => Math.min(...d.legal.flatMap((u) => ks.map((k) => Math.abs(d.probs[u][k] - c))));
+        oyP = (COMPACT ? [0.9, 0.75, 0.6, 0.3] : [0.43, 0.62, 0.8, 0.25, 0.12]).reduce((best, c) => (clear(c) > clear(best) + 0.02 ? c : best));
+      }
+      const ox = xOf(COMPACT ? 9.4 : 11.2), oy = yOf(oyP);
       const arrowD = COMPACT
         ? `M${ox + 8},${oy - 4} Q${xOf(14.6)},${oy - 10} ${cxp + 2},${cyp - 12}`
         : `M${ox + 8},${oy + 2} Q${xOf(13.6)},${oy + 4} ${cxp - 6},${cyp - 8}`;
       el("path", { d: arrowD, class: "lf-ann-arrow", "marker-end": "url(#lf-arrowhead)" }, this.annOverride);
       const ot = el("text", { x: ox, y: oy - 8, class: "lf-ann-text lf-ann-text--strong", "text-anchor": "end" }, this.annOverride);
-      ot.innerHTML = `<tspan x="${ox}" dy="0">overridden in</tspan><tspan x="${ox}" dy="${18 * S}">the final layers</tspan>`;
+      const [w1, w2] = !this.solved ? ["overridden in", "the final layers"]
+        : run >= 5 ? ["kept to", "the output"] : run >= 2 ? ["takes over in", "the final layers"] : ["takes over", "at the output"];
+      ot.innerHTML = `<tspan x="${ox}" dy="0">${w1}</tspan><tspan x="${ox}" dy="${18 * S}">${w2}</tspan>`;
 
       const defs = el("defs", {}, svg);
       const m = el("marker", { id: "lf-arrowhead", viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" }, defs);
@@ -545,7 +591,7 @@
         card.className = `vcard vcard--${row.kind}`;
         const [w, dr, l] = row.wdl;
         card.innerHTML = `
-          <div class="vcard__title">After <span class="mono">${moveLabel(d, row.uci)}</span> <span class="vcard__tag">${row.kind}</span></div>
+          <div class="vcard__title">After <span class="mono">${moveLabel(d, row.uci)}</span> <span class="vcard__tag">${row.kind === "played" && this.solved ? "other contender" : row.kind}</span></div>
           <div class="vcard__body">
             <div class="vcard__board"></div>
             ${valueNet()}
@@ -674,7 +720,9 @@
       if (!box.width || !tr.width) return;
       svg.setAttribute("viewBox", `0 0 ${box.width} ${box.height}`);
       const d = this.data;
-      const target = (r) => r.card.querySelector(r.uci === d.m_star ? ".wdl__row--win .wdl__val" : ".wdl__row--loss .wdl__val").getBoundingClientRect();
+      const most = ["win", "draw", "loss"][d.wdl.after_hat.indexOf(Math.max(...d.wdl.after_hat))];
+      const other = this.solved ? most : "loss";
+      const target = (r) => r.card.querySelector(r.uci === d.m_star ? ".wdl__row--win .wdl__val" : `.wdl__row--${other} .wdl__val`).getBoundingClientRect();
       const [up, down] = this.valueRows;
       const t1 = target(up), t2 = target(down);
       if (t2.top < t1.bottom) return; // cards side by side: no arrows
@@ -1015,9 +1063,13 @@
       b.classList.remove("is-good", "is-bad", "is-mid");
       if (!done) return;
       const d = this.data, o = this.outcome(), L = this.laActive();
-      if (L && !this.steerActive()) return; // the unsteered network misses the solution either way
+      if (L && !this.steerActive() && !this.solved) return; // the unsteered network misses the solution either way
       let icon = "✓", text, cls = "is-good";
-      if (L) {
+      if (this.solved && !L) {
+        if (o.first && o.line !== false) text = "Still solved";
+        else if (o.first) { text = `Plays ${moveLabel(d, d.m_star)}, misses the follow-up`; cls = "is-mid"; }
+        else { icon = "✗"; text = "Solution lost"; cls = "is-bad"; }
+      } else if (L) {
         if (!o.foundWithLA) { icon = "✗"; text = "Still not the solution"; cls = "is-bad"; }
         else if (o.first) {
           // a flat output can keep the solution on top by a hair: then say how little it gets
@@ -1049,8 +1101,11 @@
       const d = this.data, o = done ? this.outcome() : null;
       for (const u in this.cardTags) {
         const tag = this.cardTags[u], card = this.cardEls[u];
-        let text = u === d.m_star ? "solution" : "played", cls = "";
-        if (o) {
+        let text = u === d.m_star ? "solution" : this.solved ? "other contender" : "played", cls = "";
+        if (o && this.solved) {
+          if (u === d.m_star) { text = o.first ? "solution · still played" : "solution · no longer played"; cls = o.first ? "" : "is-old"; }
+          else { text = o.top === u ? "other contender · now played" : "other contender"; cls = o.top === u ? "is-now" : ""; }
+        } else if (o) {
           if (u === d.m_star) { text = o.first ? "solution · now played" : "solution · not played"; cls = o.first ? "is-now" : ""; }
           else { text = o.top === u ? "still played" : "no longer played"; cls = o.top === u ? "" : "is-old"; }
         }
@@ -1063,7 +1118,11 @@
     celebrate() {
       const o = this.outcome();
       if (this.laActive()) {
-        if (o.foundWithLA && !o.first) this.shakeOutput(); // look-ahead removal undid the steering
+        if (o.foundWithLA && !o.first) this.lostSolution(); // look-ahead removal took the solution away
+        return;
+      }
+      if (this.solved) { // solved before: steering can only keep or lose it
+        if (!o.first) this.lostSolution();
         return;
       }
       if (o.first) {
@@ -1072,6 +1131,32 @@
         const sp = pt.matrixTransform(this.svg.getScreenCTM());
         if (o.line !== false && this.endValue(this.data.m_star) >= 0.2) confetti(sp.x, sp.y); // not for a flattened output
       } else this.shakeOutput();
+    }
+    // The solution was there and an intervention took it away: two beats at the output. Red rings from
+    // the solution's end point, the output board flashes red and drops, and the two-note sting.
+    lostSolution() {
+      sting();
+      if (reduceMotion) return;
+      const beat = (t, at) => (t < at ? 0 : Math.exp(-(t - at) * 9));
+      const snap = this.snapEls.find((x) => x.k === 15);
+      if (snap) {
+        snap.g.classList.remove("is-thud");
+        void snap.g.getBBox();
+        snap.g.classList.add("is-thud");
+        setTimeout(() => snap.g.classList.remove("is-thud"), 950);
+        const flash = el("rect", { x: snap.cx - BOARD.size / 2, y: BOARD.y, width: BOARD.size, height: BOARD.size, class: "lf-lost-flash", opacity: 0 }, snap.boardG);
+        tween(900, (t) => flash.setAttribute("opacity", 0.45 * Math.max(beat(t, 0.02), beat(t, 0.45))), () => flash.remove());
+      }
+      const x = xOf(15), y = yOf(this.endValue(this.data.m_star));
+      [0.02, 0.45].forEach((start, i) => {
+        const ring = el("circle", { cx: x, cy: y, r: 6 * S, class: "lf-lost-ring", opacity: 0 }, this.svg);
+        tween(1000, (t) => {
+          const u = clamp01((t - start) / 0.5);
+          ring.setAttribute("r", (6 + u * (i ? 64 : 42)) * S);
+          ring.setAttribute("opacity", u > 0 ? (1 - u) * 0.9 : 0);
+          ring.setAttribute("stroke-width", ((i ? 5 : 3.5) * (1 - u) + 0.5) * S);
+        }, () => ring.remove());
+      });
     }
     shakeOutput() {
       const snap = this.snapEls.find((x) => x.k === 15);

@@ -1,6 +1,7 @@
 (function () {
   const HERO_ID = "ANklq";
-  const HERO_SNAPSHOTS = { ANklq: [3, 10, 15] }; // the paper's Figure 1 shows layers 2 and 9
+  // the paper's Figure 1 shows layers 2 and 9; Figure 2's puzzle: the forcing check (layer 9) and the rook lift (layer 12)
+  const HERO_SNAPSHOTS = { ANklq: [3, 10, 15], "62FeU": [10, 13, 15] };
   // Notes on other moves' lines (shown at that line's peak)
   const HERO_NOTES = {
     "6PIrs": [{ uci: "e2e5", lines: ["Greedy queen capture …Qxe5,", "just a trade (f4 recaptures)"] }],
@@ -9,6 +10,8 @@
   const HERO_LA_NOTES = {};
   // The forgotten puzzles shown in the paper: Figure 1 and the five case studies (appendix), in paper order.
   const PAPER = [["ANklq", "Figure 1"], ["58Ib0", "case study 1"], ["6PIrs", "case study 2"], ["1Egyn", "case study 3"], ["DsaGi", "case study 4"], ["00aDl", "case study 5"]];
+  // The solved examples: Figure 2 and the appendix's "Correctly solved puzzle case studies" (export_data.py --solved).
+  const SOLVED = [["62FeU", "Figure 2"], ["9JvtA", "case study 1"], ["70v1B", "case study 2"], ["0KBPy", "case study 3"], ["09SS5", "case study 4"], ["7UUlN", "case study 5"]];
   // Hard cases for the explorer: forgotten puzzles that (almost) no steering setting after layer 13 recovers,
   // although the middle layers clearly had the solution (top move at 9 consecutive read-outs). Not 3aGwk or
   // CkzuP: there the solution was top at only one or two read-outs, a blip rather than a found solution.
@@ -41,24 +44,27 @@
   // ---- hero: animated Figure 1 ----
   const heroHost = document.getElementById("lens-figure");
   const hero = new window.LensFigure(heroHost);
-  const chips = document.getElementById("hero-chips");
-  PAPER.filter(([id]) => meta[id]).forEach(([id, where]) => {
+  const chips = document.getElementById("hero-chips"), solvedChips = document.getElementById("hero-chips-solved");
+  const addChip = (host, id, where) => {
     const pair = document.createElement("span");
     pair.className = "chip-pair";
     pair.innerHTML = `<button type="button" class="chip" role="radio" data-id="${id}"><span class="mono">${id}</span> <small>${where}</small></button>` +
       `<a class="chip-link" href="https://lichess.org/training/${id}" target="_blank" rel="noopener" aria-label="Open puzzle ${id} on Lichess" title="Open on Lichess">↗</a>`;
     pair.querySelector("button").addEventListener("click", () => showHero(id, true));
-    chips.appendChild(pair);
-  });
+    host.appendChild(pair);
+  };
+  PAPER.filter(([id]) => meta[id]).forEach(([id, where]) => addChip(chips, id, where));
+  if (solvedChips) SOLVED.forEach(([id, where]) => addChip(solvedChips, id, where));
+  const allChips = () => document.querySelectorAll(".hero-picker .chip");
   async function showHero(id, autoplay) {
     let data;
     try {
       data = await loadPuzzle(id);
     } catch (e) {
-      chips.querySelector(`[data-id="${id}"]`)?.classList.add("is-error");
+      document.querySelector(`.hero-picker [data-id="${id}"]`)?.classList.add("is-error");
       return;
     }
-    chips.querySelectorAll(".chip").forEach((c) => c.setAttribute("aria-checked", c.dataset.id === id));
+    allChips().forEach((c) => c.setAttribute("aria-checked", c.dataset.id === id));
     hero.load(data, HERO_SNAPSHOTS[id], HERO_NOTES[id], { laNote: HERO_LA_NOTES[id] });
     if (autoplay) hero.play(true);
   }

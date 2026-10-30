@@ -310,7 +310,8 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px;
 input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--ink); border: 3px solid var(--surface); }
 
 .hero-picker { display: flex; align-items: center; gap: 12px; margin-top: 14px; flex-wrap: wrap; }
-.hero-picker__label { font-family: var(--font-ui); font-size: .8rem; color: var(--muted); }
+.hero-picker__label { font-family: var(--font-ui); font-size: .8rem; color: var(--muted); flex-basis: 100%; }
+.hero-picker__label ~ .hero-picker__label { margin-top: 6px; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { font-family: var(--font-ui); font-size: .82rem; color: var(--ink); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px; cursor: pointer; }
 .chip small { color: var(--muted); font-size: .72rem; margin-left: 2px; }
@@ -498,6 +499,8 @@ details.qa p { font-size: .96em; }
 .lens-fig__steer.is-flash { animation: lf-flash .9s ease-out; }
 @keyframes lf-flash { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--steer) 70%, transparent); } 100% { box-shadow: 0 0 0 14px transparent; } }
 .lens-fig:not(.is-complete) .lens-fig__steer { opacity: .6; }
+/* puzzles without steering data */
+.lens-fig.no-steer :is(.lens-fig__steer, .lf-pill) { display: none; }
 .steer-toggle { display: inline-flex; align-items: center; gap: 10px; font: inherit; font-size: .9rem; font-weight: 600; color: var(--ink); background: none; border: 0; padding: 2px 0; cursor: pointer; }
 .steer-toggle__track { width: 38px; height: 22px; border-radius: 11px; background: color-mix(in srgb, var(--ink) 22%, transparent); position: relative; transition: background .2s; flex: none; }
 .steer-toggle__knob { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: transform .2s; }
@@ -541,8 +544,13 @@ details.qa p { font-size: .96em; }
 .lf-badge.is-bad .lf-badge__bg { stroke: var(--hat); fill: color-mix(in srgb, var(--hat) 10%, var(--surface)); }
 .lf-badge__text { fill: var(--ink); font-family: var(--font-ui); font-size: 15px; font-weight: 700; }
 .lens-fig.is-compact .lf-badge__text { font-size: 20px; }
-.lf-snap.is-shaking .lll-board { animation: lf-shake .5s ease; transform-box: fill-box; }
+.lf-snap.is-shaking .lf-snap__board { animation: lf-shake .5s ease; transform-box: fill-box; } /* the wrapper: .lll-board has its own transform */
 @keyframes lf-shake { 20%, 60% { transform: translateX(-7px); } 40%, 80% { transform: translateX(7px); } }
+/* lost solution: the output board drops twice (with the red rings and the sting, see lostSolution) */
+.lf-snap.is-thud .lf-snap__board { animation: lf-thud .9s ease; transform-box: fill-box; transform-origin: center; }
+@keyframes lf-thud { 0% { transform: none; } 6% { transform: translateY(6px) scale(.96); } 30% { transform: none; } 51% { transform: translateY(10px) scale(.93); } 100% { transform: none; } }
+.lf-lost-flash { fill: var(--hat); pointer-events: none; }
+.lf-lost-ring { fill: none; stroke: var(--hat); pointer-events: none; }
 .vcard { transition: box-shadow .4s ease; border-radius: 10px; }
 .vcard.is-now { box-shadow: 0 0 0 2px var(--star); }
 .vcard__tag.is-now { color: var(--ink); background: color-mix(in srgb, var(--star) 22%, transparent); }
