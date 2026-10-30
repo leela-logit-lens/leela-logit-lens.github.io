@@ -246,7 +246,7 @@
         <div class="lens-fig__steer">
           <button class="steer-toggle" type="button" role="switch" aria-checked="false">
             <span class="steer-toggle__track"><span class="steer-toggle__knob"></span></span>
-            Steer against the safety prior
+            <span class="lens-fig__steer-label">Steer against the safety prior</span>
           </button>
           <label class="lens-fig__field">Direction
             <select class="lens-fig__concept"></select>
@@ -287,6 +287,7 @@
       window.addEventListener("resize", () => this.syncButtonScale());
 
       this.steerPanel = r.querySelector(".lens-fig__steer");
+      this.steerLabel = r.querySelector(".lens-fig__steer-label");
       this.head = r.querySelector(".lens-fig__puzzle");
       const ST = window.LLLSteer;
       ST.CONCEPTS.forEach((c) => {
@@ -344,6 +345,11 @@
       this.solved = !!data.solved;
       this.root.classList.toggle("is-solved", this.solved);
       this.root.classList.toggle("no-steer", !data.steering);
+      // forgotten puzzles: steer against the safety prior (can it bring the solution back?);
+      // solved puzzles: toward it (does the network then forget the solution?)
+      const toward = this.solved;
+      this.steerLabel.textContent = toward ? "Steer toward the safety prior" : "Steer against the safety prior";
+      this.sSlider.setAttribute("aria-label", `Steering strength ${toward ? "toward" : "against"} the safety prior`);
       const peakOf = (u) => data.probs[u].slice(0, 15).reduce((b, p, k, a) => (p > a[b] ? k : b), 0);
       const peak = peakOf(data.m_star);
       this.peakK = peak;
@@ -476,7 +482,7 @@
 
       // Steering layer (ghost tails, steered tails, marker), the in-chart steering button and the outcome badge
       this.steerG = el("g", { class: "lf-steer" }, svg);
-      this.pill = el("g", { class: "lf-pill", role: "button", tabindex: "0", "aria-label": "Steer against the safety prior after layer 13" }, svg);
+      this.pill = el("g", { class: "lf-pill", role: "button", tabindex: "0", "aria-label": "Steer the network after layer 13" }, svg);
       this.pillRect = el("rect", { rx: 14 * S, ry: 14 * S, height: 28 * S, class: "lf-pill__bg" }, this.pill);
       this.pillText = el("text", { class: "lf-pill__text", "dominant-baseline": "central", "text-anchor": "middle" }, this.pill);
       this.pill.addEventListener("click", () => this.setSteer({ on: !this.steer.on }));
@@ -842,6 +848,10 @@
     }
 
     // ---- steering and look-ahead acts ---------------------------------------------------
+    // The sweep's signed strength for the current setting: against the safety prior, or toward it for a solved puzzle.
+    rawSteer() {
+      return window.LLLSteer.raw(this.steer.concept, this.steer.v) * (this.solved ? -1 : 1);
+    }
     steerActive() {
       return this.steer.on && this.root.classList.contains("is-complete");
     }
@@ -850,7 +860,7 @@
     }
     steerDist(readout) {
       const ST = window.LLLSteer, st = this.steer;
-      return ST.dist(this.data, st.concept, ST.raw(st.concept, st.v), readout, 0);
+      return ST.dist(this.data, st.concept, this.rawSteer(), readout, 0);
     }
     // Output policy over d.legal as currently shown (steered or not, look-ahead removed or not);
     // withLA: the same with look-ahead intact.
@@ -859,7 +869,7 @@
       if (this.laActive() && !withLA) {
         const la = d.lookahead;
         if (!steered) return la.unsteered["15"];
-        const k = ST.sKey(ST.raw(st.concept, st.v));
+        const k = ST.sKey(this.rawSteer());
         return st.concept === "random" ? la.random[k] : la.steered[st.concept][k];
       }
       return steered ? this.steerDist(15) : d.legal.map((u) => d.probs[u][15]);
@@ -1030,7 +1040,7 @@
       const top = argmax(this.finalDist()), topWithLA = argmax(this.finalDist(true));
       let line = null;
       if (this.steerActive() && !this.laActive() && st.concept !== "random" && d.steering.pv && d.steering.pv[st.concept]) {
-        const pvr = d.steering.pv[st.concept][ST.sKey(ST.raw(st.concept, st.v))];
+        const pvr = d.steering.pv[st.concept][ST.sKey(this.rawSteer())];
         line = pvr ? pvr.solved : null;
       }
       return { top, first: top === d.m_star, line, foundWithLA: topWithLA === d.m_star };
@@ -1196,7 +1206,7 @@
       this.steerBtn.setAttribute("aria-checked", String(this.steerActive()));
       this.conceptSel.value = st.concept;
       this.sSlider.value = Math.round(st.v / 0.25);
-      const raw = ST.raw(st.concept, st.v);
+      const raw = this.rawSteer();
       this.sOut.textContent = `${ST.fmtRaw(raw)}`;
       const S_ = moveLabel(d, d.m_star), iS = d.legal.indexOf(d.m_star);
       this.updateLAUI(S_, iS);
