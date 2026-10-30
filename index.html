@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/css/site.css?v=20261008-16" />
+  <link rel="stylesheet" href="assets/css/site.css?v=20261030-1" />
 </head>
 <body>
   <a class="sr-only sr-only--focusable" href="#tldr">Skip to summary</a>
@@ -272,13 +272,50 @@
           Strength rises quickly through layer 5, plateaus until about layer 10 and climbs steeply in the last layers.
         </p>
       </details>
-      <details class="more" id="bots">
-        <summary>Play against a layer on Lichess</summary>
+      <details class="more" id="bots" open>
+        <summary>Play against a layer</summary>
         <p>
-          Every layer's policy plays on Lichess as its own bot, from the input embedding to the full network. Challenge one and see what
-          "layer 9 chess" looks like.
+          Every layer's policy plays chess on its own, from the input embedding to the full network. Pick a layer and see
+          what "layer 9 chess" looks like.
         </p>
+        <div class="play" id="play">
+          <div class="play__board"></div>
+          <div class="play__side">
+            <div class="play__layer">
+              <div class="play__who"><span class="play__name">Layer 9</span><span class="play__elo mono"></span></div>
+              <input class="play__range" type="range" min="0" max="15" step="1" value="10" aria-label="Opponent: read-out layer" />
+              <div class="play__scale"><span>Input</span><span>Full network</span></div>
+            </div>
+            <div class="play__buttons">
+              <button type="button" class="btn btn--small" data-act="white">New game as white</button>
+              <button type="button" class="btn btn--small" data-act="black">as black</button>
+              <button type="button" class="btn btn--small" data-act="undo">Take back</button>
+            </div>
+            <p class="play__status" aria-live="polite">Loading…</p>
+            <div class="play__promo" hidden>
+              Promote to
+              <button type="button" class="btn btn--small" data-piece="q">Queen</button>
+              <button type="button" class="btn btn--small" data-piece="r">Rook</button>
+              <button type="button" class="btn btn--small" data-piece="b">Bishop</button>
+              <button type="button" class="btn btn--small" data-piece="n">Knight</button>
+            </div>
+            <p class="play__think"></p>
+            <ol class="play__moves mono"></ol>
+            <a class="play__lichess" href="https://lichess.org/analysis" target="_blank" rel="noopener" hidden>Analyse the game on Lichess ↗</a>
+          </div>
+        </div>
+        <p class="note">
+          The layer plays like its Lichess bot, without search: it picks its first five moves at random according to its
+          policy, then always plays its most likely move. Its policy is computed on our server; after a quiet period the first
+          move can take up to a minute.
+        </p>
+        <h3 class="play__or">Or challenge it on Lichess</h3>
         <div class="bots" id="bot-list"></div>
+        <p class="note">
+          Challenging needs a free Lichess account; the bots play bullet, blitz and rapid, rated or casual. Ratings are Lichess
+          blitz ratings from 28 October 2026 (the paper's snapshot). A green dot means the bot is online, orange that it is in a
+          game; your challenge then waits until the game ends.
+        </p>
       </details>
       <details class="more">
         <summary>Solve rates by puzzle rating</summary>
@@ -319,15 +356,18 @@
     </div>
   </footer>
 
-  <script src="data/pieces.js?v=20261008-16"></script>
-  <script src="data/index.js?v=20261008-16"></script>
-  <script src="data/steering_aggregates.js?v=20261008-16"></script>
-  <script src="data/figure2.js?v=20261008-16"></script>
-  <script src="assets/js/board.js?v=20261008-16"></script>
-  <script src="assets/js/steer-data.js?v=20261008-16"></script>
-  <script src="assets/js/lens-figure.js?v=20261008-16"></script>
-  <script src="assets/js/network-figure.js?v=20261008-16"></script>
-  <script src="assets/js/steer.js?v=20261008-16"></script>
-  <script src="assets/js/site.js?v=20261008-16"></script>
+  <script src="data/pieces.js?v=20261030-1"></script>
+  <script src="data/index.js?v=20261030-1"></script>
+  <script src="data/steering_aggregates.js?v=20261030-1"></script>
+  <script src="data/figure2.js?v=20261030-1"></script>
+  <script src="assets/js/board.js?v=20261030-1"></script>
+  <script src="assets/js/steer-data.js?v=20261030-1"></script>
+  <script src="assets/js/lens-figure.js?v=20261030-1"></script>
+  <script src="assets/js/network-figure.js?v=20261030-1"></script>
+  <script src="assets/js/steer.js?v=20261030-1"></script>
+  <script src="assets/js/site.js?v=20261030-1"></script>
+  <script src="data/lc0-moves.js?v=20261030-1"></script>
+  <script src="assets/js/lc0-input.js?v=20261030-1"></script>
+  <script src="assets/js/play.js?v=20261030-1"></script>
 </body>
 </html>

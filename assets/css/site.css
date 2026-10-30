@@ -355,9 +355,41 @@ details.qa p { font-size: .96em; }
 .elo__dot { fill: var(--accent); stroke: var(--surface); stroke-width: 2; }
 .elo__anchor { stroke: var(--muted); stroke-dasharray: 5 4; }
 .bots { display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 8px; margin-bottom: 1em; }
-.bot { display: flex; flex-direction: column; gap: 2px; font-family: var(--font-ui); font-size: .84rem; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; text-decoration: none; color: var(--ink); }
+.bot { position: relative; font-family: var(--font-ui); font-size: .84rem; border: 1px solid var(--line); border-radius: 8px; }
 .bot:hover { border-color: var(--accent); }
+.bot__go { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; text-decoration: none; color: var(--ink); }
+.bot__k { display: flex; align-items: center; gap: 6px; }
 .bot__elo { color: var(--muted); font-size: .74rem; }
+.bot__dot { width: 7px; height: 7px; border-radius: 50%; background: var(--line); flex: none; }
+.bot.is-online .bot__dot { background: var(--star); }
+.bot.is-playing .bot__dot { background: var(--steer); }
+.bot__tv { position: absolute; right: 8px; bottom: 7px; font-size: .7rem; color: var(--muted); text-decoration: none; }
+.bot__tv:hover { color: var(--link); text-decoration: underline; }
+
+/* ============================================================ play against a layer */
+.play { display: grid; grid-template-columns: minmax(0, 400px) minmax(0, 1fr); gap: 22px; align-items: start; margin: 8px 0 10px; font-family: var(--font-ui); }
+@media (max-width: 700px) { .play { grid-template-columns: minmax(0, 1fr); } }
+.play__board svg { display: block; width: 100%; height: auto; cursor: pointer; touch-action: manipulation; user-select: none; }
+.play__sel { fill: var(--steer); opacity: .45; }
+.play__check { fill: var(--hat); opacity: .45; }
+.play__dot { fill: #000; opacity: .22; pointer-events: none; }
+.play__hit { fill: none; stroke: #000; stroke-width: 3; opacity: .22; pointer-events: none; }
+.play__side { display: flex; flex-direction: column; gap: 12px; min-width: 0; font-size: .88rem; }
+.play__who { display: flex; align-items: baseline; gap: 10px; }
+.play__name { font-weight: 600; font-size: 1.02rem; }
+.play__elo { color: var(--muted); font-size: .76rem; }
+.play__range { width: 100%; accent-color: var(--accent); margin: 6px 0 0; }
+.play__scale { display: flex; justify-content: space-between; font-size: .72rem; color: var(--muted); }
+.play__buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+.play__buttons .btn:disabled { opacity: .45; cursor: default; }
+.play__status { margin: 0; font-weight: 500; min-height: 1.3em; }
+.play__promo { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.play__promo[hidden] { display: none; }
+.play__think { margin: 0; color: var(--ink-2); min-height: 1.3em; }
+.play__moves { margin: 0; padding: 0 0 0 2.2em; max-height: 150px; overflow-y: auto; font-size: .8rem; color: var(--ink-2); columns: 2; column-gap: 18px; }
+.play__lichess { font-size: .8rem; color: var(--link); }
+.play__or { font-family: var(--font-ui); font-size: .9rem; font-weight: 600; margin: 22px 0 8px; }
+.linkish { font: inherit; color: var(--link); background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
 
 /* ============================================================ steering explorer */
 .steer { margin: 20px -140px 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 22px; box-shadow: var(--shadow); font-family: var(--font-ui); }
