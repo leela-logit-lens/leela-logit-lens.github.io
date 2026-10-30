@@ -380,11 +380,12 @@
     describeLookahead() {
       const d = this.data, la = d.lookahead;
       // Offered only where the intervention removes look-ahead and nothing else: the follow-up's square must
-      // differ from the first move's square, and no move the network is weighing now may land on it (the
-      // patch of that square would also knock out that move, e.g. the rook lift Rh6 in Figure 2's puzzle).
+      // differ from the first move's square, and the patch of that square must not knock out a move the network
+      // is weighing now that lands there too (e.g. the rook lift Rh6 in Figure 2's puzzle: 52% → 1% at layer 12).
       const sq3 = d.pv.length >= 3 ? d.pv[2].slice(2, 4) : null;
+      const knockedOut = (u, i) => ["12", "13", "14"].some((k) => d.probs[u][+k] >= 0.05 && la.unsteered[k][i] < 0.5 * d.probs[u][+k]);
       const clean = !!la && !!sq3 && sq3 !== d.pv[0].slice(2, 4) &&
-        d.legal.every((u) => u === d.m_star || u.slice(2, 4) !== sq3 || Math.max(...d.probs[u].slice(10, 15)) < 0.1);
+        d.legal.every((u, i) => u === d.m_star || u.slice(2, 4) !== sq3 || !knockedOut(u, i));
       this.root.classList.toggle("has-la", clean);
       if (!clean) return;
       const third = (d.turn === "b" ? "…" : "") + d.pv_san[2];
