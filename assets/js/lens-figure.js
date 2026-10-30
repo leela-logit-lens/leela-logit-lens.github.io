@@ -1083,7 +1083,7 @@
       // the solution on top (and, where known, the whole line): "Puzzle solved", however small its probability
       let icon = "✓", text = this.solved ? "Puzzle still solved" : "Puzzle solved", cls = "is-good";
       const lost = this.solved ? "Puzzle now forgotten" : "Still not the solution";
-      if (L && !o.first) { icon = "✗"; text = o.foundWithLA ? "Not found without look-ahead" : lost; cls = "is-bad"; }
+      if (L && !o.first) { icon = "✗"; text = o.foundWithLA && !this.solved ? "Not found without look-ahead" : lost; cls = "is-bad"; }
       else if (!o.first) { icon = "✗"; text = lost; cls = "is-bad"; }
       else if (o.line === false) { text = `Plays ${moveLabel(d, d.m_star)}, misses the follow-up`; cls = "is-mid"; }
       b.classList.add(cls);
@@ -1119,18 +1119,17 @@
       }
     }
 
-    // Confetti when steering does what it set out to do: a forgotten puzzle solved, or a solved puzzle
-    // (steered toward the safety prior) forgotten; a shake when it does not. The dun-dun when removing
-    // look-ahead takes the solution away.
+    // Confetti when the intervention does what it set out to do: a forgotten puzzle solved, or a solved
+    // puzzle forgotten (steered toward the safety prior, or without look-ahead); a shake when it does not.
+    // The dun-dun when removing look-ahead undoes a forgotten puzzle's recovery.
     celebrate() {
       if (this.laActive() && !this.steerActive() && !this.solved) return; // never found, nothing to mark (no badge either)
       const o = this.outcome();
-      if (this.laActive() && o.foundWithLA && !o.first) return this.lostSolution();
       if (this.solved) {
-        if (!this.steerActive()) return; // look-ahead removal alone that keeps the solution
         if (o.first) this.shakeOutput(); else this.confettiAtOutput();
         return;
       }
+      if (this.laActive() && o.foundWithLA && !o.first) return this.lostSolution();
       if (o.first) { if (o.line !== false) this.confettiAtOutput(); } // not for the first move only
       else this.shakeOutput();
     }
