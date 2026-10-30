@@ -159,8 +159,9 @@ main > section.prose { padding: 40px 16px; }
 .figure--wide { margin-left: -60px; margin-right: -60px; }
 .figure__row { display: grid; grid-template-columns: 1.45fr 1fr; gap: 16px; margin-top: 16px; align-items: end; }
 .figure__row--fig6 { grid-template-columns: 1fr 1fr .5fr; align-items: center; margin-top: 0; }
+.figure__row--even { grid-template-columns: 1fr 1fr; align-items: center; margin-top: 0; }
 @media (max-width: 860px) { .figure--wide { margin-left: 0; margin-right: 0; } }
-@media (max-width: 620px) { .figure__row, .figure__row--fig6 { grid-template-columns: 1fr; } .figure__legend { max-width: 220px; } }
+@media (max-width: 620px) { .figure__row, .figure__row--fig6, .figure__row--even { grid-template-columns: 1fr; } .figure__legend { max-width: 220px; } }
 
 .split { display: grid; grid-template-columns: 1fr 300px; gap: 32px; align-items: start; }
 .figure--narrow figcaption { font-size: .8rem; }

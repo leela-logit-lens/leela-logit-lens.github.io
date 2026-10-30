@@ -147,31 +147,49 @@
 
   // ---- Lichess bots ----
   // Blitz ratings frozen for the paper's Table 4 (2026-10-28 13:43 UTC), in K order: input, layers 0–13, full network.
+  // They are shown until the live ratings arrive, and stay if Lichess cannot be reached.
   const names = ["In"].concat([...Array(14).keys()].map(String), ["Full"]);
   const labels = names.map((n) => (n === "In" ? "Input" : n === "Full" ? "Full network" : `Layer ${n}`));
   const blitz = [545, 631, 611, 655, 740, 723, 815, 815, 827, 906, 952, 860, 946, 1205, 1482, 2099];
-  window.LLL_BOTS = { labels, blitz }; // also for the play board (play.js)
+  window.LLL_BOTS = { labels, blitz }; // also for the play board (play.js), which listens for "lll-bots"
   const bots = document.getElementById("bot-list");
   if (bots) {
-    bots.innerHTML = names.map((n, i) => {
-      const label = labels[i];
-      const bot = `LLLBot-${n}`;
-      return `<div class="bot" data-bot="${bot.toLowerCase()}">` +
-        `<a class="bot__go" href="https://lichess.org/?user=${bot}#friend" target="_blank" rel="noopener" title="Challenge ${bot} on Lichess">` +
-        `<span class="bot__k"><span class="bot__dot" aria-hidden="true"></span>${label}</span><span class="bot__elo mono">${blitz[i]} blitz</span></a>` +
-        `<a class="bot__tv" href="https://lichess.org/@/${bot}/tv" target="_blank" rel="noopener" title="Watch ${bot} play">Watch</a></div>`;
-    }).join("");
-    // Online status from Lichess; without it the cards simply show no dot.
-    fetch(`https://lichess.org/api/users/status?ids=${names.map((n) => "LLLBot-" + n).join(",")}`)
-      .then((r) => r.json())
-      .then((list) => list.forEach((u) => {
-        const card = bots.querySelector(`[data-bot="${u.id}"]`);
-        if (!card) return;
-        card.classList.toggle("is-online", !!u.online);
-        card.classList.toggle("is-playing", !!u.playing);
-        card.querySelector(".bot__dot").title = u.playing ? "playing a game" : u.online ? "online" : "offline";
-      }))
-      .catch(() => {});
+    const ids = names.map((n) => `LLLBot-${n}`);
+    bots.innerHTML = ids.map((bot, i) =>
+      `<div class="bot" data-bot="${bot.toLowerCase()}">` +
+      `<a class="bot__go" href="https://lichess.org/@/${bot}" target="_blank" rel="noopener" title="${bot} on Lichess">` +
+      `<span class="bot__k"><span class="bot__dot" aria-hidden="true"></span>${labels[i]}</span><span class="bot__elo mono">${blitz[i]} blitz</span></a>` +
+      `<a class="bot__tv" href="https://lichess.org/@/${bot}/tv" target="_blank" rel="noopener" title="Watch ${bot} play">Watch</a></div>`).join("");
+    const card = (id) => bots.querySelector(`[data-bot="${id.toLowerCase()}"]`);
+    // Live online status and blitz ratings from Lichess, refreshed every few minutes while the page is open.
+    const refresh = () => {
+      if (document.hidden) return;
+      fetch(`https://lichess.org/api/users/status?ids=${ids.join(",")}`)
+        .then((r) => r.json())
+        .then((list) => list.forEach((u) => {
+          const c = card(u.id);
+          if (!c) return;
+          c.classList.toggle("is-online", !!u.online);
+          c.classList.toggle("is-playing", !!u.playing);
+          c.querySelector(".bot__dot").title = u.playing ? "playing a game" : u.online ? "online" : "offline";
+        }))
+        .catch(() => {});
+      fetch("https://lichess.org/api/users", { method: "POST", body: ids.join(",") })
+        .then((r) => r.json())
+        .then((list) => {
+          list.forEach((u) => {
+            const i = ids.findIndex((id) => id.toLowerCase() === u.id);
+            const r = u.perfs && u.perfs.blitz && u.perfs.blitz.rating;
+            if (i < 0 || !r) return;
+            blitz[i] = r;
+            card(u.id).querySelector(".bot__elo").textContent = `${r} blitz`;
+          });
+          document.dispatchEvent(new Event("lll-bots"));
+        })
+        .catch(() => {});
+    };
+    refresh();
+    setInterval(refresh, 3 * 60 * 1000);
   }
 
   // ---- BibTeX copy ----

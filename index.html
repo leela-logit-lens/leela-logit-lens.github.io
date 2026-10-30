@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/css/site.css?v=20261030-2" />
+  <link rel="stylesheet" href="assets/css/site.css?v=20261030-5" />
 </head>
 <body>
   <a class="sr-only sr-only--focusable" href="#tldr">Skip to summary</a>
@@ -91,7 +91,7 @@
           Reading out Leela's policy layer by layer, we find puzzles whose solution, often a checkmate, is found in the
           middle layers and then <em>overridden</em> at the output. On these <em>forgotten puzzles</em>, look-ahead is still present
           and causally involved. What changes is in the last layers, which shift toward safe, quiet play. Steering against that shift
-          recovers most of the forgotten solutions.
+          recovers most of the forgotten solutions, and Leela's own training target, computed by search, would have chosen them.
         </p>
         <p class="tldr__punch">A model can internally solve a problem and still output the wrong answer.</p>
       </div>
@@ -156,18 +156,21 @@
       <p>
         Is the algorithm failing? We repeat <a href="https://leela-interp.github.io/">Jenner et al.'s</a> look-ahead analyses on the forgotten set.
         The future moves of the correct line are <b>represented, causally important and linearly decodable</b>, as on puzzles the network solves.
-        Look-ahead is present and contributes; what the final layers do with it is the difference.
+        In the Figure&nbsp;1 puzzle, cutting the single L12H12 attention entry that carries d1's information to f1 lowers
+        <span class="mono">…Qxf1+</span> from 5.8% to 1.0%. Look-ahead is present and contributes; what the final layers do with it
+        is the difference. The override itself comes at the very end: <span class="num">63%</span> of forgotten puzzles are still
+        solved after the last attention sublayer, so it happens in the final feed-forward layer.
       </p>
       <figure class="figure figure--paper figure--wide">
         <img src="assets/figures/forgotten_act_patching.png" alt="Activation patching on forgotten puzzles: the effect of patching the third-move target square stands out in the middle layers compared with other squares." loading="lazy" width="2400" height="640" />
         <div class="figure__row">
-          <img src="assets/figures/forgotten_head_ablation.png" alt="Ablating the single attention entry of head L12H12 from the first-move target to the third-move target reduces the solution's log-odds far more than any other entry." loading="lazy" width="2070" height="1082" />
+          <img src="assets/figures/forgotten_head_ablation.png" alt="Ablating the single attention entry of head L12H12 that carries information from the third-move target to the first-move target reduces the solution's log-odds far more than any other entry." loading="lazy" width="2070" height="1082" />
           <img src="assets/figures/forgotten_probing.png" alt="A bilinear probe predicts the third move of the solution from intermediate activations with high accuracy in the middle layers, far above a randomly initialised model." loading="lazy" width="1438" height="1087" />
         </div>
         <figcaption>
           <b>Top:</b> patching the 3rd-move target square matters most in middle layers.
-          <b>Bottom left:</b> one attention entry of head L12H12 (1st → 3rd move target) beats all 4,095 others in <span class="num">62%</span> of forgotten puzzles.
-          <b>Bottom right:</b> a bilinear probe predicts the 3rd move with <span class="num">79%</span> accuracy at layer 12 (solved puzzles: <span class="num">90%</span>).
+          <b>Bottom left:</b> one attention entry of head L12H12 (3rd → 1st move target) beats all 4,095 others in <span class="num">62%</span> of forgotten puzzles.
+          <b>Bottom right:</b> a bilinear probe predicts the 3rd move with up to <span class="num">79%</span> accuracy (solved puzzles: <span class="num">90%</span>).
         </figcaption>
       </figure>
     </section>
@@ -179,17 +182,19 @@
         Since the network swaps forcing sacrifices for quiet moves, we measure which chess concepts each layer's policy prefers, using
         Stockfish's hand-crafted evaluation terms as interpretable proxies. Late layers move toward <em>own king safety</em> and
         <em>fewer threats from the opponent</em>, which we call <em>safety priors</em>. Gradient-based steering against these concepts
-        after layer 13 raises the solve rate on held-out puzzles from <span class="num">88.5%</span> to <span class="num">92.3%</span> and recovers
-        <span class="num">63%</span> of forgotten puzzles. On the separate forgotten dataset it recovers <span class="num">72%</span>.
+        works best after layer 13, steering the network to worry less about the opponent's threats. It raises the solve rate on held-out
+        puzzles from <span class="num">88.6%</span> to <span class="num">92.4%</span>, recovers <span class="num">62%</span> of the forgotten
+        puzzles and solves <span class="num">34%</span> of the puzzles that no layer had solved. On the separate forgotten dataset it
+        recovers <span class="num">72%</span>.
         Random directions of the same norm recover about <span class="num">10%</span>.
       </p>
       <figure class="figure figure--paper">
         <div class="figure__row figure__row--fig6">
-          <img src="assets/figures/concept_preferences_panel.png" alt="Concept preference by layer for four safety concepts: own king safety and opponent threats shift in the safe direction in the last layers." loading="lazy" width="1299" height="1076" />
-          <img src="assets/figures/steering_effects_panel.png" alt="Held-out solve rate after steering at each layer for the four safety concepts, compared with the unsteered model and random directions; the largest gain is late in the network." loading="lazy" width="1243" height="1076" />
+          <img src="assets/figures/concept_preferences_panel.png" alt="Concept preference by layer for four safety concepts: own king safety and opponent threats shift in the safe direction in the last layers." loading="lazy" width="1300" height="1076" />
+          <img src="assets/figures/steering_effects_panel.png" alt="Held-out solve rate after steering at each layer for the four safety concepts, compared with the unsteered model and random directions; the largest gain is late in the network." loading="lazy" width="1245" height="1076" />
           <img class="figure__legend" src="assets/figures/concept_legend.png" alt="Legend: king safety (opponent), threats (mine), king safety (mine), threats (opponent)." loading="lazy" width="648" height="474" />
         </div>
-        <figcaption><b>Left:</b> concept preference of each layer's policy. <b>Right:</b> held-out solve rate when steering at each layer (band: spread over 200 random 50/50 splits).</figcaption>
+        <figcaption><b>Left:</b> concept preference of each layer's policy. <b>Right:</b> held-out solve rate when steering at each layer (band: one standard deviation over 200 random 50/50 splits).</figcaption>
       </figure>
 
       <h3 class="explorer-title">Try it: steer a forgotten puzzle</h3>
@@ -200,7 +205,7 @@
       </p>
       <div id="steer-explorer"></div>
       <p class="note">
-        The examples are selected. Across the held-out evaluation, the paper's setting recovers <span class="num">62.9 ± 3.4%</span> of forgotten puzzles.
+        The examples are selected. The paper's best setting recovers <span class="num">62.4%</span> of the forgotten puzzles in the 10k set.
         Of the 353 forgotten puzzles in the 10k set whose first move is wrong, 37 are recovered by none of the 32 settings shown here (four directions × eight strengths),
         such as <span class="mono">3aGwk</span>, <span class="mono">CkzuP</span> and <span class="mono">LktHH</span>.
       </p>
@@ -208,14 +213,31 @@
 
     <section class="wrap prose" id="scope">
       <h2>What about search?</h2>
-      <div class="callout">
-        <p>
-          Our claims concern Leela's <b>policy network</b> on its own. In deployment, Leela runs Monte Carlo tree search, and its value head
-          rates the positions after the correct move correctly. With search, the network finds almost all forgotten solutions:
-          <span class="num">97.5%</span> at 800 nodes. Search can fix what the policy overrides, but it has to spend nodes doing so.
-          A policy that read out the penultimate layers needs fewer of them.
-        </p>
-      </div>
+      <p>
+        Our claims concern Leela's <b>policy network</b> on its own. But the policy is not trained to solve puzzles: in self-play, each
+        move is chosen by a tree search guided by the network, and the policy learns to match where that search spent its visits.
+        Could this training target itself prefer the quiet move? We run the self-play search, with the settings of the run that trained
+        this network, on every forgotten puzzle. The target puts on average <span class="num">93%</span> of its visits on the solution,
+        and the solution is its most visited move in <span class="num">99.4%</span> of puzzles. The penultimate layer is closer to that
+        target than the final layer in <span class="num">78%</span> of forgotten puzzles. Had these positions come up in training, the
+        objective would have asked for the solution; the override comes from a prior that is sensible on typical positions.
+      </p>
+      <figure class="figure figure--paper">
+        <div class="figure__row figure__row--even">
+          <img src="assets/figures/search_training_target.png" alt="On forgotten puzzles, the training target puts around 90 to 100% on the correct move, while the penultimate and final layers mostly give it less than 40%, the final layer least." loading="lazy" width="2068" height="1184" />
+          <img src="assets/figures/search_deployment.png" alt="Engine solve rate by search budget: on forgotten puzzles the final-layer policy starts at 0% with one node and needs more nodes than a penultimate-layer policy to catch up; on solved puzzles it is ahead at small budgets." loading="lazy" width="2068" height="1280" />
+        </div>
+        <figcaption>
+          <b>Left:</b> probability on the correct move of forgotten puzzles under the training target, the penultimate layer and the final layer.
+          <b>Right:</b> how often the engine plays the solution at each search budget, with the policy read from the final layer (blue) or the
+          penultimate layer (orange). Red: what the final layer costs on forgotten puzzles; green: what it gains on solved ones.
+        </figcaption>
+      </figure>
+      <p>
+        In deployment, Leela runs this search, and with enough of it the engine finds the forgotten solutions: <span class="num">97.8%</span>
+        at 800 nodes. The final layer makes this more expensive. With 8 nodes the engine finds <span class="num">54%</span> of them; with
+        a policy read from the penultimate layer, <span class="num">75%</span>. On puzzles the network already solves, the final layer helps instead.
+      </p>
     </section>
 
     <section class="wrap prose" id="implications">
@@ -239,7 +261,7 @@
         <summary>Is steering just adding noise until the quiet move loses its lead?</summary>
         <p>
           No. Flattening a distribution, for example by raising its temperature, never changes which move is on top, so it cannot solve a puzzle.
-          Steering changes the ranking: it raises the solve rate on <em>all</em> puzzles from 88.5% to 92.3% (held-out), which noise would lower.
+          Steering changes the ranking: it raises the solve rate on <em>all</em> puzzles from 88.6% to 92.4% (held-out), which noise would lower.
           Random directions of the same norm recover about 10% of forgotten puzzles. And steering along <em>king safety (opp.)</em> recovers 57% of them
           with no change in the median entropy of the output. The explorer above shows the full distribution and its entropy for each case.
         </p>
@@ -248,8 +270,8 @@
         <summary>Doesn't the readout decide what counts as "solved"?</summary>
         <p>
           The logit lens decodes intermediate layers with the network's own policy head, without training a decoder. A learned decoder fitted
-          to match the final output would remove the phenomenon by construction. Keeping the normalisation biases instead of zeroing them leaves
-          97.4% of forgotten puzzles unchanged, and the intermediate policies play coherent chess (the layer bots below).
+          to match the final output would remove the phenomenon by construction. Keeping the normalisation biases instead of zeroing them changes
+          the solve rate by at most 2.7 percentage points at any layer and leaves the forgotten puzzles nearly unchanged, and the intermediate policies play coherent chess (the layer bots below).
         </p>
       </details>
       <details class="qa">
@@ -312,9 +334,9 @@
         <h3 class="play__or">Or challenge it on Lichess</h3>
         <div class="bots" id="bot-list"></div>
         <p class="note">
-          Challenging needs a free Lichess account; the bots play bullet, blitz and rapid, rated or casual. Ratings are Lichess
-          blitz ratings from 28 October 2026 (the paper's snapshot). A green dot means the bot is online, orange that it is in a
-          game; your challenge then waits until the game ends.
+          Each card opens the bot's Lichess profile, where you can challenge it with a free Lichess account; the bots play bullet,
+          blitz and rapid, rated or casual. Ratings are their current Lichess blitz ratings; the paper reports a snapshot from
+          28 October 2026. A green dot means the bot is online, orange that it is in a game; a challenge then waits until the game ends.
         </p>
       </details>
       <details class="more">
@@ -356,18 +378,18 @@
     </div>
   </footer>
 
-  <script src="data/pieces.js?v=20261030-2"></script>
-  <script src="data/index.js?v=20261030-2"></script>
-  <script src="data/steering_aggregates.js?v=20261030-2"></script>
-  <script src="data/figure2.js?v=20261030-2"></script>
-  <script src="assets/js/board.js?v=20261030-2"></script>
-  <script src="assets/js/steer-data.js?v=20261030-2"></script>
-  <script src="assets/js/lens-figure.js?v=20261030-2"></script>
-  <script src="assets/js/network-figure.js?v=20261030-2"></script>
-  <script src="assets/js/steer.js?v=20261030-2"></script>
-  <script src="assets/js/site.js?v=20261030-2"></script>
-  <script src="data/lc0-moves.js?v=20261030-2"></script>
-  <script src="assets/js/lc0-input.js?v=20261030-2"></script>
-  <script src="assets/js/play.js?v=20261030-2"></script>
+  <script src="data/pieces.js?v=20261030-5"></script>
+  <script src="data/index.js?v=20261030-5"></script>
+  <script src="data/steering_aggregates.js?v=20261030-5"></script>
+  <script src="data/figure2.js?v=20261030-5"></script>
+  <script src="assets/js/board.js?v=20261030-5"></script>
+  <script src="assets/js/steer-data.js?v=20261030-5"></script>
+  <script src="assets/js/lens-figure.js?v=20261030-5"></script>
+  <script src="assets/js/network-figure.js?v=20261030-5"></script>
+  <script src="assets/js/steer.js?v=20261030-5"></script>
+  <script src="assets/js/site.js?v=20261030-5"></script>
+  <script src="data/lc0-moves.js?v=20261030-5"></script>
+  <script src="assets/js/lc0-input.js?v=20261030-5"></script>
+  <script src="assets/js/play.js?v=20261030-5"></script>
 </body>
 </html>

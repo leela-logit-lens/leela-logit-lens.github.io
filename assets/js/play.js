@@ -291,6 +291,7 @@
   }
 
   ui.range.addEventListener("input", showLayer);
+  document.addEventListener("lll-bots", showLayer); // live Lichess ratings arrived
   root.querySelector('[data-act="white"]').addEventListener("click", () => newGame("w"));
   root.querySelector('[data-act="black"]').addEventListener("click", () => newGame("b"));
   ui.undo.addEventListener("click", takeBack);
