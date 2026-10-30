@@ -50,15 +50,7 @@
         el("circle", { cx: p.x + geo.sq / 2, cy: p.y + geo.sq / 2, r: geo.sq * (capture ? 0.44 : 0.15), class: capture ? "play__hit" : "play__dot" }, targets);
       }
     }
-    svg.addEventListener("click", (e) => {
-      const pt = svg.createSVGPoint();
-      pt.x = e.clientX;
-      pt.y = e.clientY;
-      const p = pt.matrixTransform(svg.getScreenCTM().inverse());
-      const col = Math.floor((p.x - geo.border) / geo.sq), row = Math.floor((p.y - geo.border) / geo.sq);
-      if (col < 0 || col > 7 || row < 0 || row > 7) return;
-      clickSquare(FILES[geo.flipped ? 7 - col : col] + (geo.flipped ? row + 1 : 8 - row));
-    });
+    svg.addEventListener("pointerdown", (e) => pointerDown(e, svg, geo));
     ui.board.replaceChildren(svg);
     renderMoves();
   }
@@ -74,23 +66,84 @@
     ui.lichess.hidden = !san.length;
   }
 
-  // ---- the human's moves ----
-  function clickSquare(s) {
+  // ---- the human's moves: drag a piece, or click it and then its target square ----
+  function svgPoint(svg, e) {
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    return pt.matrixTransform(svg.getScreenCTM().inverse());
+  }
+
+  function squareAt(svg, geo, e) {
+    const p = svgPoint(svg, e);
+    const col = Math.floor((p.x - geo.border) / geo.sq), row = Math.floor((p.y - geo.border) / geo.sq);
+    if (col < 0 || col > 7 || row < 0 || row > 7) return null;
+    return FILES[geo.flipped ? 7 - col : col] + (geo.flipped ? row + 1 : 8 - row);
+  }
+
+  function pointerDown(e, svg, geo) {
     const { chess } = state;
-    if (state.busy || chess.isGameOver() || chess.turn() !== state.human) return;
+    if (e.button !== 0 || state.busy || chess.isGameOver() || chess.turn() !== state.human) return;
+    const s = squareAt(svg, geo, e);
+    if (!s) return;
+    e.preventDefault();
     ui.promo.hidden = true;
-    if (state.selected) {
-      const options = chess.moves({ square: state.selected, verbose: true }).filter((m) => m.to === s);
-      if (options.length) {
-        const from = state.selected;
-        state.selected = null;
-        if (options.some((m) => m.promotion)) return choosePromotion(from, s);
-        return play({ from, to: s });
-      }
-    }
+    if (state.selected && tryMove(state.selected, s)) return;
     const piece = chess.get(s);
-    state.selected = piece && piece.color === state.human && s !== state.selected ? s : null;
+    if (!piece || piece.color !== state.human) {
+      state.selected = null;
+      return render();
+    }
+    const wasSelected = state.selected === s;
+    state.selected = s;
     render();
+    drag(e, s, wasSelected);
+  }
+
+  function tryMove(from, to) {
+    const options = state.chess.moves({ square: from, verbose: true }).filter((m) => m.to === to);
+    if (!options.length) return false;
+    state.selected = null;
+    if (options.some((m) => m.promotion)) choosePromotion(from, to);
+    else play({ from, to });
+    return true;
+  }
+
+  // The piece on `from` follows the pointer until it is released; a press without movement counts as a click.
+  function drag(down, from, wasSelected) {
+    const svg = ui.board.querySelector("svg"), g = svg.querySelector(".lll-board");
+    const geo = { sq: +g.dataset.sq, border: +g.dataset.border, flipped: g.dataset.flipped === "1" };
+    const piece = g.querySelector(`use[data-sq="${from}"]`);
+    let moved = false;
+    const move = (e) => {
+      if (e.pointerId !== down.pointerId) return;
+      if (!moved && Math.hypot(e.clientX - down.clientX, e.clientY - down.clientY) < 4) return;
+      if (!moved) {
+        moved = true;
+        g.appendChild(piece); // above the other pieces and the target marks
+        piece.classList.add("is-dragged");
+      }
+      const p = svgPoint(svg, e);
+      piece.setAttribute("transform", `translate(${p.x - geo.sq / 2},${p.y - geo.sq / 2}) scale(${piece.dataset.s})`);
+    };
+    const up = (e) => {
+      if (e.pointerId !== down.pointerId) return;
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      if (!moved) {
+        if (wasSelected) {
+          state.selected = null; // clicking the selected piece again deselects it
+          render();
+        }
+        return;
+      }
+      const to = e.type === "pointerup" ? squareAt(svg, geo, e) : null;
+      if (!(to && to !== from && tryMove(from, to))) render(); // dropped elsewhere: back to its square, still selected
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
   }
 
   function choosePromotion(from, to) {

@@ -369,7 +369,8 @@ details.qa p { font-size: .96em; }
 /* ============================================================ play against a layer */
 .play { display: grid; grid-template-columns: minmax(0, 400px) minmax(0, 1fr); gap: 22px; align-items: start; margin: 8px 0 10px; font-family: var(--font-ui); }
 @media (max-width: 700px) { .play { grid-template-columns: minmax(0, 1fr); } }
-.play__board svg { display: block; width: 100%; height: auto; cursor: pointer; touch-action: manipulation; user-select: none; }
+.play__board svg { display: block; width: 100%; height: auto; cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; }
+.play__board .is-dragged { cursor: grabbing; filter: drop-shadow(0 3px 4px rgba(0, 0, 0, .35)); }
 .play__sel { fill: var(--steer); opacity: .45; }
 .play__check { fill: var(--hat); opacity: .45; }
 .play__dot { fill: #000; opacity: .22; pointer-events: none; }
