@@ -29,7 +29,7 @@
   const xOf = (k) => CH.x0 + (k / 15) * (CH.x1 - CH.x0);
   const yOf = (p) => CH.yBot - p * (CH.yBot - CH.yTop);
   // the row of pills and badge above the chart (phones: the legend row sits right above it)
-  const pillY = () => CH.yTop - (COMPACT ? 30 : 38) * S;
+  const pillY = () => CH.yTop - (COMPACT ? 30 : 46) * S;
   const layerName = (k) => (k === 0 ? "Input" : k === 15 ? "Final output" : `Layer ${k - 1}`);
   const tickName = (k) => (k === 0 ? "Input" : k === 15 ? "Final" : String(k - 1));
   const pct = (p) => (p < 0.0005 ? "<0.1%" : (p >= 0.1 ? (p * 100).toFixed(0) : (p * 100).toFixed(1)) + "%");
@@ -1138,7 +1138,7 @@
         const width = (t, text) => (t.getComputedTextLength() || text.length * 0.57 * f) + 2 * f;
         w = width(this.pillText, label);
         // the steering pill may run into the free margin right of the chart
-        x = Math.min(xOf(14) + w / 2 - 18 * S, Math.min(CH.x1 + 18 * S, W - 6) - w / 2);
+        x = Math.min(xOf(14) + w / 2 - 18 * S, Math.min(CH.x1 + 27 * S, W - 3) - w / 2);
         lw = width(this.laPillText, lt);
         right = Math.min(xOf(11) + 18 * S, x - w / 2 - gap);
         if (!laShown || right - lw >= minLeft || f < 10) break;

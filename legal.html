@@ -6,8 +6,8 @@
   <title>Imprint and privacy · The Algorithm Is Not the Behavior</title>
   <meta name="description" content="Imprint and privacy information for the project page of the paper The Algorithm Is Not the Behavior." />
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
-  <link rel="stylesheet" href="assets/css/fonts.css?v=20261111-02" />
-  <link rel="stylesheet" href="assets/css/site.css?v=20261111-02" />
+  <link rel="stylesheet" href="assets/css/fonts.css?v=20261111-03" />
+  <link rel="stylesheet" href="assets/css/site.css?v=20261111-03" />
 </head>
 <body>
   <main class="wrap prose legal">
@@ -40,8 +40,8 @@
         server, hosted on Hugging Face Spaces (Hugging Face, Inc., USA). It sends the board position together with the game's
         previous positions (the network's input), the chosen layer and the legal moves, and receives that layer's move
         probabilities. Hugging Face processes your IP address to handle the request. Our server writes no request logs and does
-        not store the positions; to limit how often it can be called, it keeps your IP address with a request counter in memory
-        only, until the server restarts. See <a href="https://huggingface.co/privacy">Hugging Face's privacy policy</a>.
+        not store the positions; to limit how often it can be called, it keeps a keyed hash of your IP address with a request
+        counter in memory only, and forgets it about a minute after your last request. See <a href="https://huggingface.co/privacy">Hugging Face's privacy policy</a>.
       </li>
       <li>
         <b>Lichess.</b> When the “Play against a layer” section comes into view, the page asks the Lichess API for the bots' online
