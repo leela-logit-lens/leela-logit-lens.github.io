@@ -28,6 +28,8 @@
 
   const xOf = (k) => CH.x0 + (k / 15) * (CH.x1 - CH.x0);
   const yOf = (p) => CH.yBot - p * (CH.yBot - CH.yTop);
+  // the row of pills and badge above the chart (phones: the legend row sits right above it)
+  const pillY = () => CH.yTop - (COMPACT ? 30 : 38) * S;
   const layerName = (k) => (k === 0 ? "Input" : k === 15 ? "Final output" : `Layer ${k - 1}`);
   const tickName = (k) => (k === 0 ? "Input" : k === 15 ? "Final" : String(k - 1));
   const pct = (p) => (p < 0.0005 ? "<0.1%" : (p >= 0.1 ? (p * 100).toFixed(0) : (p * 100).toFixed(1)) + "%");
@@ -1128,16 +1130,17 @@
       // Font size in chart units for a constant size on screen (syncButtonScale), shrunk if both pills do not fit
       // in their row: the steering pill ends at the chart's right edge, the look-ahead pill must not leave the figure.
       const laShown = this.root.classList.contains("has-la");
-      const y = CH.yTop - 30 * S, minLeft = 6;
+      const y = pillY(), minLeft = 6, gap = (COMPACT ? 12 : 20) * S;
       let f = this.pillFont || (COMPACT ? 21 : 15), x, w, right, lw;
       for (let i = 0; i < 12; i++) {
         this.pillText.style.fontSize = this.laPillText.style.fontSize = `${f}px`;
         // pill widths from the rendered text (an estimate while the pill is hidden), plus padding
         const width = (t, text) => (t.getComputedTextLength() || text.length * 0.57 * f) + 2 * f;
         w = width(this.pillText, label);
-        x = Math.min(xOf(14) + w / 2 - 18 * S, CH.x1 - w / 2 + 4 * S);
+        // the steering pill may run into the free margin right of the chart
+        x = Math.min(xOf(14) + w / 2 - 18 * S, Math.min(CH.x1 + 18 * S, W - 6) - w / 2);
         lw = width(this.laPillText, lt);
-        right = Math.min(xOf(11) + 18 * S, x - w / 2 - 8 * S);
+        right = Math.min(xOf(11) + 18 * S, x - w / 2 - gap);
         if (!laShown || right - lw >= minLeft || f < 10) break;
         f *= Math.max(0.8, Math.min(0.98, (x + w / 2 - minLeft) / (x + w / 2 - (right - lw))));
       }
@@ -1184,9 +1187,9 @@
         let f = this.pillFont || 15;
         t.style.fontSize = `${f}px`;
         w = (t.getComputedTextLength() || label.length * 0.57 * f) + 2 * f;
-        const avail = pillLeft - 10 * S - 12;
+        const avail = pillLeft - 20 * S - 12;
         if (w > avail) { f *= avail / w; w = avail; t.style.fontSize = `${f}px`; }
-        h = (32 / 15) * f; x = pillLeft - 10 * S; y = CH.yTop - 30 * S;
+        h = (32 / 15) * f; x = pillLeft - 20 * S; y = pillY();
       }
       b.insertBefore(el("rect", { x: x - w, y: y - h / 2, width: w, height: h, rx: h / 2, class: "lf-badge__bg" }, b), t);
       t.setAttribute("x", x - w / 2);
