@@ -1335,12 +1335,13 @@
     }
 
     // The pills are drawn inside the scaled chart: size their text in chart units so it shows at a constant size on
-    // screen (about 14 px, 13 px on phones), whatever the chart's scale, and give the HTML prompt buttons the same size.
+    // screen (13 px, a little above the chart's own labels), whatever the chart's scale, and give the HTML prompt
+    // buttons the same size.
     syncButtonScale() {
       const w = this.svg.getBoundingClientRect().width;
       if (!w) return;
       const k = w / W;
-      const f = Math.min(COMPACT ? 26 : 19, Math.max(COMPACT ? 16 : 12, (COMPACT ? 13 : 14) / k));
+      const f = Math.min(COMPACT ? 26 : 19, Math.max(COMPACT ? 16 : 12, 13 / k));
       const st = this.root.style, px = f * k;
       st.setProperty("--cta-font", `${px.toFixed(2)}px`);
       st.setProperty("--cta-h", `${((32 / 15) * px).toFixed(2)}px`);
