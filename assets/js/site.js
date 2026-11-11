@@ -50,7 +50,12 @@
     pair.className = "chip-pair";
     pair.innerHTML = `<button type="button" class="chip" role="radio" data-id="${id}"><span class="mono">${id}</span> <small>${where}</small></button>` +
       `<a class="chip-link" href="https://lichess.org/training/${id}" target="_blank" rel="noopener" aria-label="Open puzzle ${id} on Lichess" title="Open on Lichess">↗</a>`;
-    pair.querySelector("button").addEventListener("click", () => showHero(id, true));
+    pair.querySelector("button").addEventListener("click", () => {
+      showHero(id, true);
+      // on a phone the picker sits below the chart, and the replay would run out of sight
+      const chart = heroHost.querySelector(".lens-fig__svg");
+      if (chart.getBoundingClientRect().top < 0) chart.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
     host.appendChild(pair);
   };
   PAPER.filter(([id]) => meta[id]).forEach(([id, where]) => addChip(chips, id, where));
@@ -102,53 +107,9 @@
     const ex = new window.SteerExplorer(steerHost);
     ex.setPuzzles([
       { group: "From the paper", items: PAPER.filter(([id]) => meta[id]).map(([id, where]) => ({ id, meta: meta[id], where })) },
-      { group: "Hard cases", items: HARD.filter((id) => meta[id]).map((id) => ({ id, meta: meta[id] })) },
+      { group: "Hard cases", items: HARD.filter((id) => meta[id]).map((id) => ({ id, meta: meta[id], hard: true })) },
     ], loadPuzzle);
     ex.select(meta.DsaGi ? "DsaGi" : PAPER[0][0]);
-  }
-
-  // ---- Elo per layer (internal tournament, tau = 0) ----
-  const ELO = [351, 609, 655, 730, 832, 908, 993, 997, 1028, 1030, 1055, 1082, 1117, 1356, 1670, 2268];
-  const ANCHOR = 2292;
-  drawElo(document.getElementById("elo-chart"));
-  function drawElo(host) {
-    if (!host) return;
-    const { el } = window.LLLBoard;
-    const W = 760, H = 300, X0 = 56, X1 = 740, Y0 = 20, Y1 = 250;
-    const x = (k) => X0 + (k / 15) * (X1 - X0);
-    const y = (e) => Y1 - (e / 2600) * (Y1 - Y0); // headroom above the anchor for the phase labels
-    const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Elo of the policy read out at each layer, from 351 at the input to 2268 for the full network." });
-    [[0, 6, "early gains"], [6, 11, "plateau"], [11, 15, "late gains"]].forEach(([a, b, t], i) => {
-      el("rect", { x: x(a), y: Y0, width: x(b) - x(a), height: Y1 - Y0, class: i % 2 ? "elo__phase elo__phase--alt" : "elo__phase" }, svg);
-      el("text", { x: (x(a) + x(b)) / 2, y: Y0 + 14, class: "lf-tick lf-tick--sm", "text-anchor": "middle" }, svg).textContent = t;
-    });
-    [0, 500, 1000, 1500, 2000].forEach((e) => {
-      el("line", { x1: X0, x2: X1, y1: y(e), y2: y(e), class: "lf-grid" }, svg);
-      el("text", { x: X0 - 8, y: y(e), class: "lf-tick", "text-anchor": "end", "dominant-baseline": "central" }, svg).textContent = e.toLocaleString("en-US");
-    });
-    el("line", { x1: X0, x2: X1, y1: y(ANCHOR), y2: y(ANCHOR), class: "elo__anchor" }, svg);
-    el("text", { x: X0 + 6, y: y(ANCHOR) + 14, class: "lf-tick lf-tick--sm" }, svg).textContent = `Lc0 policy anchor (${ANCHOR})`;
-    el("polyline", { points: ELO.map((e, k) => `${x(k)},${y(e)}`).join(" "), class: "elo__line" }, svg);
-    const tip = document.createElement("div");
-    tip.className = "lens-fig__tip elo__tip";
-    ELO.forEach((e, k) => {
-      el("circle", { cx: x(k), cy: y(e), r: 4.5, class: "elo__dot" }, svg);
-      const label = k === 0 ? "Input" : k === 15 ? "Full" : String(k - 1);
-      el("text", { x: x(k), y: Y1 + 18, class: "lf-tick lf-tick--sm", "text-anchor": "middle" }, svg).textContent = label;
-      const hit = el("rect", { x: x(k) - 22, y: Y0, width: 44, height: Y1 - Y0, class: "lf-hit" }, svg);
-      hit.addEventListener("pointerenter", () => {
-        tip.innerHTML = `<div class="tip__head">${k === 0 ? "Input embedding" : k === 15 ? "Full network" : "After layer " + (k - 1)}</div><div class="tip__row"><span class="mono">${e} Elo</span></div>`;
-        const r = svg.getBoundingClientRect(), hr = host.getBoundingClientRect();
-        tip.style.left = `${r.left - hr.left + (x(k) / W) * r.width}px`;
-        tip.style.top = `${r.top - hr.top + (y(e) / H) * r.height - 8}px`;
-        tip.classList.toggle("is-left", k > 11);
-        tip.classList.add("is-visible");
-      });
-      hit.addEventListener("pointerleave", () => tip.classList.remove("is-visible"));
-    });
-    el("text", { x: (X0 + X1) / 2, y: H - 4, class: "lf-axis-label lf-axis-label--sm", "text-anchor": "middle" }, svg).textContent = "Layer";
-    host.appendChild(svg);
-    host.appendChild(tip);
   }
 
   // ---- Lichess bots ----
@@ -167,7 +128,7 @@
       `<span class="bot__k"><span class="bot__dot" aria-hidden="true"></span>${labels[i]}</span><span class="bot__elo mono">${blitz[i]} blitz</span></a>` +
       `<a class="bot__tv" href="https://lichess.org/@/${bot}/tv" target="_blank" rel="noopener" title="Watch ${bot} play">Watch</a></div>`).join("");
     const card = (id) => bots.querySelector(`[data-bot="${id.toLowerCase()}"]`);
-    // Live online status and blitz ratings from Lichess, refreshed every few minutes while the page is open.
+    // Live online status and blitz ratings from Lichess, refreshed every few minutes while the page is open and visible.
     const refresh = () => {
       if (document.hidden) return;
       fetch(`https://lichess.org/api/users/status?ids=${ids.join(",")}`)
@@ -194,9 +155,23 @@
         })
         .catch(() => {});
     };
-    refresh();
-    setInterval(refresh, 3 * 60 * 1000);
+    // Nothing is sent to lichess.org until the Play section (play board and bot cards) comes near the screen.
+    const start = () => { refresh(); setInterval(refresh, 3 * 60 * 1000); };
+    const section = document.getElementById("bots") || bots;
+    if ("IntersectionObserver" in window) {
+      const io = new IntersectionObserver((entries) => {
+        if (entries.some((e) => e.isIntersecting)) { io.disconnect(); start(); }
+      }, { rootMargin: "300px 0px" });
+      io.observe(section);
+    } else start();
   }
+
+  // a link to a collapsed <details> (e.g. "The definitions ↓") opens it
+  document.addEventListener("click", (e) => {
+    const a = e.target.closest('a[href^="#"]');
+    const t = a && a.getAttribute("href").length > 1 && document.getElementById(a.getAttribute("href").slice(1));
+    if (t && t.tagName === "DETAILS") t.open = true;
+  });
 
   // ---- BibTeX copy ----
   const copyBtn = document.querySelector(".bib__copy");
@@ -219,32 +194,54 @@
     a.addEventListener("click", (e) => e.preventDefault());
   });
 
-  // ---- scroll-spy for the side navigation ----
-  const navLinks = [...document.querySelectorAll(".sidenav a")];
-  const targets = navLinks.map((a) => document.querySelector(a.getAttribute("href"))).filter(Boolean);
-  const spy = new IntersectionObserver((entries) => {
-    entries.forEach((en) => {
-      if (en.isIntersecting) {
-        navLinks.forEach((a) => a.classList.toggle("is-active", a.getAttribute("href") === "#" + en.target.id));
-      }
-    });
-  }, { rootMargin: "-40% 0px -55% 0px" });
-  targets.forEach((t) => spy.observe(t));
+  // ---- contact: each name in the address line opens a mail; the address is put together here, not in the HTML ----
+  document.querySelectorAll("[data-mail]").forEach((a) => (a.href = `mailto:${a.dataset.mail}@hhi.fraunhofer.de`));
 
-  // ---- design variants (preview only) ----
-  const root = document.documentElement;
-  const params = new URLSearchParams(location.search);
-  let design = params.get("design");
-  try { design = design || localStorage.getItem("lll-design"); } catch (e) {}
-  if (design) root.dataset.design = design;
-  if (params.get("switch") === "0") document.querySelector(".design-switch")?.remove();
-  document.querySelectorAll(".design-switch button").forEach((b) => {
-    b.setAttribute("aria-pressed", b.dataset.design === root.dataset.design);
-    b.addEventListener("click", () => {
-      root.dataset.design = b.dataset.design;
-      try { localStorage.setItem("lll-design", b.dataset.design); } catch (e) {}
-      document.querySelectorAll(".design-switch button").forEach((x) => x.setAttribute("aria-pressed", x === b));
-      hero.drawConnectors();
-    });
+  // ---- figures ----
+  // They are lazy, so they don't hold up the hero. Once the page has loaded, the rest are fetched in the background, so they
+  // are there before the reader scrolls to them; those in closed "More results" panels stay lazy until opened.
+  const preloadFigures = () => document.querySelectorAll('.figure img[loading="lazy"]').forEach((img) => {
+    if (!img.closest("details:not([open])")) img.loading = "eager";
   });
+  if (document.readyState === "complete") setTimeout(preloadFigures, 0);
+  else addEventListener("load", () => setTimeout(preloadFigures, 0), { once: true });
+
+  // ---- navigation bar ----
+  // It slides in once the hero's buttons have scrolled out above the viewport, and marks the section in view.
+  const bar = document.getElementById("topbar");
+  const heroButtons = document.querySelector(".hero .buttons");
+  if (bar && heroButtons) {
+    new IntersectionObserver(([en]) => {
+      bar.classList.toggle("is-shown", !en.isIntersecting && en.boundingClientRect.top < 0);
+    }).observe(heroButtons);
+  }
+  const navRow = bar && bar.querySelector(".topbar__nav");
+  const navLinks = navRow ? [...navRow.querySelectorAll("a")] : [];
+  const sections = navLinks.map((a) => document.querySelector(a.getAttribute("href"))).filter(Boolean);
+  // the section the reading line (40% down the screen) is in; the Play link points into "More results"
+  const sectionOf = (el) => el.closest("section") || el;
+  const markActive = () => {
+    const line = innerHeight * 0.4;
+    let current = null;
+    sections.forEach((t, i) => {
+      const r = sectionOf(t).getBoundingClientRect();
+      // a link can cover the sections after its own (Method: the setup text and Figure 2)
+      const until = navLinks[i].dataset.spyUntil && document.querySelector(navLinks[i].dataset.spyUntil);
+      const bottom = until ? until.getBoundingClientRect().bottom : r.bottom;
+      if (r.top <= line && bottom > line) current = navLinks[i];
+    });
+    navLinks.forEach((a) => a.classList.toggle("is-active", a === current));
+    // on phones the row scrolls sideways: keep the active link in view
+    if (current && navRow.scrollWidth > navRow.clientWidth) {
+      const c = current.getBoundingClientRect(), r = navRow.getBoundingClientRect();
+      if (c.left < r.left || c.right > r.right) navRow.scrollLeft += c.left - r.left - 8;
+    }
+  };
+  let spyQueued = false;
+  addEventListener("scroll", () => {
+    if (spyQueued) return;
+    spyQueued = true;
+    requestAnimationFrame(() => { spyQueued = false; markActive(); });
+  }, { passive: true });
+  markActive();
 })();

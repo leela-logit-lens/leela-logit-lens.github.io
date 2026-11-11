@@ -2,7 +2,7 @@
    Lines grow layer by layer; board snapshots fade in when the front reaches their layer;
    the final layers play slowly; then the value head's view of both resulting positions. */
 (function () {
-  const { el, drawBoard } = window.LLLBoard;
+  const { el, drawBoard, hoverTip, figSan } = window.LLLBoard;
   const COL = { star: "#00b894", hat: "#d63031", other: "#8a939b" };
   // Layout in SVG units. "compact" is used below 640px container width (phones): a narrower
   // drawing so that text stays legible after scaling, and the legend as a row under the boards.
@@ -14,7 +14,7 @@
       CH = { x0: 64, x1: 572, yTop: 330, yBot: 614 };
       BOARD = { size: 172, y: 36 };
       BOARD_CX = [96, 300, 504];
-      LEGEND = { x: 14, y: 248, row: true };
+      LEGEND = { x: 14, y: 240, row: true }; // clear of the buttons below it
     } else {
       W = 960; H = 610; S = 1;
       CH = { x0: 74, x1: 930, yTop: 318, yBot: 548 };
@@ -52,7 +52,7 @@
     }));
   }
   function moveLabel(data, uci) {
-    const san = data.san[uci];
+    const san = figSan(data.san[uci]);
     return data.turn === "b" ? `…${san}` : san;
   }
 
@@ -108,7 +108,7 @@
     } catch (e) { /* no audio: the visual beats remain */ }
   }
 
-  // "A chess puzzle with a single winning move: Black mates in two, starting with a queen sacrifice: 1…Qxf1+ 2.Kxf1 Rd1#."
+  // "A chess puzzle with a single clearly winning move: Black mates in two, starting with a queen sacrifice: 1…Qxf1+ 2.Kxf1 Rd1#."
   function describePuzzle(d, mate) {
     const side = d.turn === "b" ? "Black" : "White";
     const PIECE = { Q: "queen", R: "rook", B: "bishop", N: "knight", K: "king" };
@@ -116,7 +116,7 @@
     const sac = d.pv.length > 1 && d.pv[1].slice(2, 4) === d.pv[0].slice(2, 4) ? `${PIECE[d.pv_san[0][0]] || "pawn"} sacrifice` : null;
     const words = ["", "one", "two", "three", "four", "five"];
     let n = 1, line = "";
-    d.pv_san.forEach((m, i) => {
+    d.pv_san.map(figSan).forEach((m, i) => {
       const white = (d.turn === "w") === (i % 2 === 0);
       if (i === 0 && !white) line += `1…${m}`;
       else if (white) line += `${i ? " " : ""}${n}.${m}`;
@@ -124,7 +124,7 @@
       if (!white) n += 1;
     });
     const what = mate ? `${side} mates in ${words[+mate] || mate}` : d.themes.includes("crushing") ? `${side} wins decisively` : `${side} wins`;
-    return `A chess puzzle with a single winning move: ${what}${sac ? `, starting with a ${sac}` : ""}: <span class="mono">${line}</span>.`;
+    return `A chess puzzle with a single clearly winning move: ${what}${sac ? `, starting with a ${sac}` : ""}: <span class="mono">${line}</span>.`;
   }
 
   // What the corrupted board used for the look-ahead ablation changes: "an extra white pawn on d2".
@@ -162,6 +162,38 @@
     const p01 = L(P[0], P[1]), p12 = L(P[1], P[2]), p23 = L(P[2], P[3]);
     const p012 = L(p01, p12), p123 = L(p12, p23), p = L(p012, p123);
     return `M${P[0][0]},${P[0][1]} C${p01[0]},${p01[1]} ${p012[0]},${p012[1]} ${p[0]},${p[1]}`;
+  }
+
+  // Points along a path of straight segments whose corners are rounded with radius r (each corner a quadratic curve).
+  function roundedPolyline(P, r) {
+    const out = [P[0]];
+    for (let i = 1; i < P.length - 1; i++) {
+      const [a, p, b] = [P[i - 1], P[i], P[i + 1]];
+      const la = Math.hypot(p[0] - a[0], p[1] - a[1]), lb = Math.hypot(b[0] - p[0], b[1] - p[1]);
+      const k = Math.min(r, la / 2, lb / 2);
+      if (!(k > 0)) { out.push(p); continue; }
+      const s = [p[0] + ((a[0] - p[0]) * k) / la, p[1] + ((a[1] - p[1]) * k) / la];
+      const e = [p[0] + ((b[0] - p[0]) * k) / lb, p[1] + ((b[1] - p[1]) * k) / lb];
+      for (let j = 0; j <= 6; j++) {
+        const t = j / 6, u = 1 - t;
+        out.push([u * u * s[0] + 2 * u * t * p[0] + t * t * e[0], u * u * s[1] + 2 * u * t * p[1] + t * t * e[1]]);
+      }
+    }
+    out.push(P[P.length - 1]);
+    return out;
+  }
+
+  // The first fraction t (by length) of a polyline, so dashed connectors can "grow".
+  function polylinePath(P, t) {
+    const seg = P.slice(1).map((p, i) => Math.hypot(p[0] - P[i][0], p[1] - P[i][1]));
+    let left = seg.reduce((a, b) => a + b, 0) * Math.min(1, Math.max(0, t));
+    let d = `M${P[0][0]},${P[0][1]}`;
+    for (let i = 0; i < seg.length && left > 0; i++) {
+      const f = Math.min(1, left / (seg[i] || 1));
+      d += ` L${P[i][0] + (P[i + 1][0] - P[i][0]) * f},${P[i][1] + (P[i + 1][1] - P[i][1]) * f}`;
+      left -= seg[i];
+    }
+    return d;
   }
 
   // requestAnimationFrame tween that still finishes if frames are paused (background tab).
@@ -255,6 +287,11 @@
             <input class="lens-fig__s" type="range" min="1" max="4" step="1" value="2" aria-label="Steering strength against the safety prior" />
             <output class="lens-fig__s-out mono"></output>
           </label>
+          <details class="lens-fig__la-how lens-fig__steer-how"><summary>How?</summary><p>
+            We add a fixed direction to the network's activations after layer 13, just before the override. For each concept, such as the
+            opponent's king safety, it is the gradient of the network's concept preference (how much its moves change that concept on average)
+            with respect to these activations, averaged over positions from ordinary games, not puzzles, and scaled to the layer's typical
+            activation size. The strength is a multiple of that size, from the paper's sweep. <a href="#priors-defs">The definitions ↓</a></p></details>
           <div class="lens-fig__stats" aria-live="polite"></div>
         </div>
         <div class="lens-fig__la">
@@ -290,7 +327,10 @@
       this.steerLabel = r.querySelector(".lens-fig__steer-label");
       this.head = r.querySelector(".lens-fig__puzzle");
       const ST = window.LLLSteer;
-      ST.CONCEPTS.forEach((c) => {
+      // the hero's own order (the explorer follows the figure legend): by how well each direction works on the hero's twelve
+      // puzzles at its four strengths (forgotten solved + solved lost, of 48: threats opp. 35, king safety opp. 34, threats mine 26,
+      // king safety mine 24), with the default, king safety (opp.), first among the two that are tied; random last
+      ["king_safety_opponent_ph", "threats_opponent_ph", "threats_mine_ph", "king_safety_mine_ph", "random"].map((k) => ST.BY_KEY[k]).forEach((c) => {
         const o = document.createElement("option");
         o.value = c.key;
         o.textContent = c.label + (c.note ? ` (${c.note})` : "");
@@ -303,7 +343,7 @@
       this.laPanel = r.querySelector(".lens-fig__la");
       this.laBtn = r.querySelector(".la-toggle");
       this.laWhat = r.querySelector(".lens-fig__la-what");
-      this.laHow = r.querySelector(".lens-fig__la-how p");
+      this.laHow = r.querySelector(".lens-fig__la .lens-fig__la-how p"); // the steering panel's "How?" shares the class for its look
       this.laStats = r.querySelector(".lens-fig__la-stats");
       this.laBtn.addEventListener("click", () => this.setLA({ on: !this.la.on }));
 
@@ -330,6 +370,11 @@
           this.setFront(f, { showValue: done });
         }
         this.drawConnectors();
+      });
+      document.fonts.addEventListener("loadingdone", () => {
+        this.fitLegend();
+        if (this.pill) this.drawPill(this.pill.classList.contains("is-on")); // pill widths follow the loaded font
+        this.drawConnectors(); // the arrows under the chart end at the card tags, which move with the font
       });
     }
 
@@ -387,21 +432,20 @@
         d.legal.every((u, i) => u === d.m_star || u.slice(2, 4) !== sq3 || !knockedOut(u, i));
       this.root.classList.toggle("has-la", clean);
       if (!clean) return;
-      const third = (d.turn === "b" ? "…" : "") + d.pv_san[2];
+      const third = (d.turn === "b" ? "…" : "") + figSan(d.pv_san[2]);
       const sq1 = d.pv[0].slice(2, 4);
       const layers = `${la.patch_layers[0]}–${la.patch_layers[la.patch_layers.length - 1]}`;
-      this.laWhat.innerHTML = `From layer ${la.from_layer} on, the network can no longer use what it computes about the follow-up <span class="mono">${third}</span>.`;
+      this.laWhat.innerHTML = `In the later layers, the network can no longer use what it computes about the follow-up <span class="mono">${third}</span>.`;
       const corr = describeCorruption(d.fen, la.corruption.fen);
+      const first = (d.turn === "b" ? "…" : "") + figSan(d.pv_san[0]);
+      const mono = (t) => `<span class="mono">${t}</span>`;
       this.laHow.innerHTML =
-        `The paper's two look-ahead interventions together: we block the attention that carries information from the follow-up's square (${sq3}) ` +
-        `to the first move's square (${sq1}) in heads ${la.heads.join(" and ")}, and overwrite ${sq3} after layers ${layers} with its activations ` +
-        `from a corrupted board on which the follow-up fails (${corr}). ` +
-        (la.corruption.official
-          ? "The corrupted board comes from the paper's corruption set."
-          : "This puzzle has no corrupted board that passes all of the paper's filters (the network already sees the position as lost, so no corruption can lower its evaluation by the required margin); this one is chosen by hand.") +
-        " As with steering, a change made after a layer shows from the next layer's read-out on." +
-        " Combining the two, and with steering, is a demonstration on these puzzles; the paper reports each intervention on its own." +
-        ` <a href="#lookahead">What look-ahead is, and the evidence for it ↓</a>`;
+        `To judge ${mono(first)}, the network works out the follow-up ${mono(third)} on ${sq3}, the square it lands on, and attention heads ` +
+        `${la.heads.join(" and ")} can carry this to ${sq1}, where ${mono(first)} lands. We take that information away in two ways at once: ` +
+        `the two heads can no longer look from ${sq1} at ${sq3}, and after layers ${layers} we swap what the network has computed on ${sq3} ` +
+        `for what it computes on a slightly changed board where ${mono(third)} fails (${corr}). ` +
+        "Each change shows from the next layer's read-out on. The paper tests the two separately; combining them, and with steering, is a demonstration. " +
+        `<a href="#lookahead">What look-ahead is, and the evidence for it ↓</a>`;
     }
 
     drawStatic() {
@@ -427,6 +471,7 @@
         if (major) {
           const t = el("text", { x: xOf(k), y: CH.yBot + 26 * S, class: "lf-tick lf-tick--major", "text-anchor": "middle" }, chart);
           t.textContent = tickName(k);
+          if (k === 15) this.finalTick = t;
         }
       }
       const xl = el("text", { x: (CH.x0 + CH.x1) / 2, y: H - 8, class: "lf-axis-label", "text-anchor": "middle" }, chart);
@@ -459,12 +504,15 @@
         [COL.hat, `${moveLabel(d, d.m_hat)}`, this.solved ? "other contender" : "played"],
         [COL.other, LEGEND.row ? "other moves" : "other legal moves", ""],
       ];
+      const swatch = LEGEND.row ? 20 : 26 * S, textX = swatch + (LEGEND.row ? 8 : 10 * S);
       items.forEach(([c, a, b], i) => {
-        const x0 = LEGEND.row ? [0, 200, 384][i] : 0, y = LEGEND.row ? 0 : 30 + i * 30;
-        el("line", { x1: x0, x2: x0 + 26 * S, y1: y, y2: y, stroke: c, "stroke-width": (i === 2 ? 2 : 3) * S, "stroke-linecap": "round", opacity: i === 2 ? 0.6 : 1 }, lg);
-        const t = el("text", { x: x0 + 36 * S, y, class: "lf-legend-item", "dominant-baseline": "central" }, lg);
+        const y = LEGEND.row ? 0 : 30 + i * 30, item = el("g", {}, lg);
+        el("line", { x1: 0, x2: swatch, y1: y, y2: y, stroke: c, "stroke-width": (i === 2 ? 2 : 3) * S, "stroke-linecap": "round", opacity: i === 2 ? 0.6 : 1 }, item);
+        const t = el("text", { x: textX, y, class: "lf-legend-item", "dominant-baseline": "central" }, item);
         t.innerHTML = b ? `<tspan class="lf-mono">${a}</tspan><tspan class="lf-muted"> ${b}</tspan>` : `<tspan class="lf-muted">${a}</tspan>`;
       });
+      this.legendG = lg;
+      this.fitLegend();
 
       // Look-ahead removal: shaded layers and marker, behind the lines
       this.laG = el("g", { class: "lf-la" }, svg);
@@ -482,13 +530,13 @@
 
       // Steering layer (ghost tails, steered tails, marker), the in-chart steering button and the outcome badge
       this.steerG = el("g", { class: "lf-steer" }, svg);
-      this.pill = el("g", { class: "lf-pill", role: "button", tabindex: "0", "aria-label": "Steer the network after layer 13" }, svg);
-      this.pillRect = el("rect", { rx: 14 * S, ry: 14 * S, height: 28 * S, class: "lf-pill__bg" }, this.pill);
+      this.pill = el("g", { class: "lf-pill", role: "button", tabindex: "0", "aria-label": "Steer the network" }, svg);
+      this.pillRect = el("rect", { rx: 16 * S, ry: 16 * S, height: 32 * S, class: "lf-pill__bg" }, this.pill);
       this.pillText = el("text", { class: "lf-pill__text", "dominant-baseline": "central", "text-anchor": "middle" }, this.pill);
       this.pill.addEventListener("click", () => this.setSteer({ on: !this.steer.on }));
       this.pill.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this.setSteer({ on: !this.steer.on }); } });
-      this.laPill = el("g", { class: "lf-lapill", role: "button", tabindex: "0", "aria-label": "Remove look-ahead from layer 10 on" }, svg);
-      this.laPillRect = el("rect", { rx: 14 * S, ry: 14 * S, height: 28 * S, class: "lf-lapill__bg" }, this.laPill);
+      this.laPill = el("g", { class: "lf-lapill", role: "button", tabindex: "0", "aria-label": "Remove look-ahead information" }, svg);
+      this.laPillRect = el("rect", { rx: 16 * S, ry: 16 * S, height: 32 * S, class: "lf-lapill__bg" }, this.laPill);
       this.laPillText = el("text", { class: "lf-lapill__text", "dominant-baseline": "central", "text-anchor": "middle" }, this.laPill);
       this.laPill.addEventListener("click", () => this.setLA({ on: !this.la.on }));
       this.laPill.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this.setLA({ on: !this.la.on }); } });
@@ -582,8 +630,24 @@
       this.hover = el("g", { class: "lf-hover" }, svg);
       this.hoverLine = el("line", { y1: CH.yTop, y2: CH.yBot, class: "lf-hover-line" }, this.hover);
       const hit = el("rect", { x: CH.x0 - 20, y: CH.yTop - 20, width: CH.x1 - CH.x0 + 40, height: CH.yBot - CH.yTop + 40, class: "lf-hit" }, svg);
-      hit.addEventListener("pointermove", (e) => this.onHover(e));
-      hit.addEventListener("pointerleave", () => this.hideTip());
+      hoverTip(hit, (e) => this.onHover(e), () => this.hideTip());
+    }
+
+    // The compact legend is a single row: its items sit side by side, and shrink to fit long move names. The
+    // dashed lines from the boards cross it, so each item gets a backing in the card colour and the lines pass behind.
+    fitLegend() {
+      if (!LEGEND.row || !this.legendG) return;
+      this.legendG.querySelectorAll(".lf-legend-bg").forEach((r) => r.remove());
+      const items = [...this.legendG.children], boxes = items.map((g) => g.getBBox()), gap = 18;
+      const total = boxes.reduce((a, b) => a + b.width, gap * (items.length - 1));
+      let x = 0;
+      items.forEach((g, i) => {
+        g.setAttribute("transform", `translate(${x},0)`);
+        x += boxes[i].width + gap;
+        const b = boxes[i];
+        g.insertBefore(el("rect", { x: b.x - 5, y: b.y - 2, width: b.width + 10, height: b.height + 4, rx: 4, class: "lf-legend-bg" }), g.firstChild);
+      });
+      this.legendG.setAttribute("transform", `translate(${LEGEND.x},${LEGEND.y}) scale(${Math.min(1, (W - 2 * LEGEND.x) / total)})`);
     }
 
     // Each resulting position: board → the network's value head → win/draw/loss. The panel shows the
@@ -702,7 +766,7 @@
       // Both cards together: the whole network fades in faintly with the arrow in, then the layers
       // pulse and settle one after the other, arrow out, W/D/L labels, bars, numbers.
       const at = (t, fn) => this.valueTimers.push(setTimeout(fn, t));
-      const PULSE = 850, T0 = 650;
+      const PULSE = 550, T0 = 450;
       this.valueRows.forEach((r) => {
         const { cols, links } = parts(r);
         at(0, () => r.card.classList.add("ev-start"));
@@ -714,11 +778,11 @@
         });
         const tOut = T0 + cols.length * PULSE;
         at(tOut, () => r.card.classList.add("ev-out"));
-        at(tOut + 450, () => r.card.classList.add("ev-labels"));
-        at(tOut + 850, () => r.card.classList.add("is-evaluated"));      // bars: 1 s
-        at(tOut + 850 + 1050, () => r.card.classList.add("ev-vals"));   // numbers after the bars
+        at(tOut + 300, () => r.card.classList.add("ev-labels"));
+        at(tOut + 550, () => r.card.classList.add("is-evaluated"));      // bars: 0.7 s
+        at(tOut + 550 + 750, () => r.card.classList.add("ev-vals"));    // numbers after the bars
       });
-      at(T0 + 3 * PULSE + 850 + 1050 + 400, done);
+      at(T0 + 3 * PULSE + 550 + 750 + 300, done);
     }
 
     // Arrows from the note between the cards to the decisive numbers: the loss after the played
@@ -738,13 +802,15 @@
       const [up, down] = this.valueRows;
       const t1 = target(up), t2 = target(down);
       if (t2.top < t1.bottom) return; // cards side by side: no arrows
-      // leave from the end of the first line (up) and the end of the last line (down), then one curve each
+      // leave beside the first line (up) and the last line (down), both at the text's right edge, so the
+      // two curves mirror each other; one curve each
       const range = document.createRange();
       range.selectNodeContents(this.noteText);
       const lines = [...range.getClientRects()].filter((q) => q.width > 0);
       const first = lines[0] || tr, last = lines[lines.length - 1] || tr;
-      const a = [first.right - box.left + 6, first.top - box.top + first.height / 2];
-      const b = [last.right - box.left + 6, last.top - box.top + last.height / 2];
+      const x0 = Math.max(...lines.map((q) => q.right), tr.left) - box.left + 8;
+      const a = [x0, first.top - box.top + first.height / 2];
+      const b = [x0, last.top - box.top + last.height / 2];
       const e1 = [t1.left - box.left + t1.width / 2, t1.bottom - box.top + 3];
       const e2 = [t2.left - box.left + t2.width / 2, t2.top - box.top - 3];
       el("path", { d: `M${a[0]},${a[1]} Q${e1[0]},${a[1]} ${e1[0]},${e1[1]}`, class: "note-arrow" }, svg);
@@ -1048,29 +1114,45 @@
 
     drawPill(active) {
       if (!this.pill) return;
-      const label = COMPACT ? (active ? "steered · undo" : "＋ steer after layer 13") : active ? "steered after layer 13 · undo" : "＋ steer after layer 13";
+      // what the steering does, in the paper's terms and the panel's wording: against the safety prior on a forgotten
+      // puzzle, toward it on a solved one
+      const aim = this.steer.concept === "random" ? "in a random direction" : this.solved ? "toward the safety prior" : "against the safety prior";
+      const label = active ? "steered · undo" : `＋ steer ${aim}`;
+      this.pill.setAttribute("aria-label", `Steer the network ${aim}`);
       this.pillText.textContent = label;
-      const w = (label.length * 7.4 + 26) * S;
-      const x = Math.min(xOf(14) + w / 2 - 18 * S, CH.x1 - w / 2 + 4 * S), y = CH.yTop - 30 * S;
+      const laOn = this.laActive();
+      const lt = COMPACT ? (laOn ? "no look-ahead · undo" : "− remove look-ahead") : laOn ? "look-ahead removed · undo" : "− remove look-ahead information";
+      this.laPillText.textContent = lt;
+      this.pill.classList.toggle("is-on", active);
+      this.laPill.classList.toggle("is-on", laOn);
+      // Font size in chart units for a constant size on screen (syncButtonScale), shrunk if both pills do not fit
+      // in their row: the steering pill ends at the chart's right edge, the look-ahead pill must not leave the figure.
+      const laShown = this.root.classList.contains("has-la");
+      const y = CH.yTop - 30 * S, minLeft = 6;
+      let f = this.pillFont || (COMPACT ? 21 : 15), x, w, right, lw;
+      for (let i = 0; i < 12; i++) {
+        this.pillText.style.fontSize = this.laPillText.style.fontSize = `${f}px`;
+        // pill widths from the rendered text (an estimate while the pill is hidden), plus padding
+        const width = (t, text) => (t.getComputedTextLength() || text.length * 0.57 * f) + 2 * f;
+        w = width(this.pillText, label);
+        x = Math.min(xOf(14) + w / 2 - 18 * S, CH.x1 - w / 2 + 4 * S);
+        lw = width(this.laPillText, lt);
+        right = Math.min(xOf(11) + 18 * S, x - w / 2 - 8 * S);
+        if (!laShown || right - lw >= minLeft || f < 10) break;
+        f *= Math.max(0.8, Math.min(0.98, (x + w / 2 - minLeft) / (x + w / 2 - (right - lw))));
+      }
+      const h = (32 / 15) * f;
+      for (const r of [this.pillRect, this.laPillRect]) { r.setAttribute("height", h); r.setAttribute("rx", h / 2); r.setAttribute("ry", h / 2); r.setAttribute("y", y - h / 2); }
       this.pillRect.setAttribute("x", x - w / 2);
-      this.pillRect.setAttribute("y", y - 14 * S);
       this.pillRect.setAttribute("width", w);
       this.pillText.setAttribute("x", x);
       this.pillText.setAttribute("y", y);
-      this.pill.classList.toggle("is-on", active);
       // The look-ahead pill ends just right of its marker at layer 10 (mirroring the steering pill,
       // which starts just left of its marker), and never runs into the steering pill.
-      const laOn = this.laActive();
-      const lt = COMPACT ? (laOn ? "no look-ahead · undo" : "− look-ahead") : laOn ? "look-ahead removed · undo" : "− look-ahead from layer 10";
-      const lw = (lt.length * 7.4 + 26) * S;
-      const right = Math.min(xOf(11) + 18 * S, x - w / 2 - 8 * S);
-      this.laPillText.textContent = lt;
       this.laPillRect.setAttribute("x", right - lw);
-      this.laPillRect.setAttribute("y", y - 14 * S);
       this.laPillRect.setAttribute("width", lw);
       this.laPillText.setAttribute("x", right - lw / 2);
       this.laPillText.setAttribute("y", y);
-      this.laPill.classList.toggle("is-on", laOn);
     }
 
     drawBadge(done) {
@@ -1087,17 +1169,28 @@
       else if (!o.first) { icon = "✗"; text = lost; cls = "is-bad"; }
       else if (o.line === false) { text = `Plays ${moveLabel(d, d.m_star)}, misses the follow-up`; cls = "is-mid"; }
       b.classList.add(cls);
-      // to the left of the pills, in the free row above the chart
+      // to the left of the pills, in the free row above the chart, at the pills' size (shrunk if a long status
+      // would not fit); phones: inside the chart's empty top-left corner, at its own size
       const label = `${icon}  ${text}`;
-      const w = (label.length * 8.1 + 28) * S;
-      // phones: inside the chart's empty top-left corner
       const cl = this.root.classList; // the look-ahead pill shows together with the steering pill
       const laShown = cl.contains("has-la") && cl.contains("is-complete");
       const pillLeft = +(laShown ? this.laPillRect : this.pillRect).getAttribute("x");
-      const x = COMPACT ? CH.x0 + 12 + w : Math.max(CH.x0 + w, pillLeft - 10 * S);
-      const y = COMPACT ? yOf(0.9) : CH.yTop - 30 * S;
-      el("rect", { x: x - w, y: y - 16 * S, width: w, height: 32 * S, rx: 16 * S, class: "lf-badge__bg" }, b);
-      el("text", { x: x - w / 2, y, class: "lf-badge__text", "text-anchor": "middle", "dominant-baseline": "central" }, b).textContent = label;
+      const t = el("text", { class: "lf-badge__text", "text-anchor": "middle", "dominant-baseline": "central" }, b);
+      t.textContent = label;
+      let w, h, x, y;
+      if (COMPACT) {
+        w = (label.length * 8.1 + 28) * S; h = 32 * S; x = CH.x0 + 12 + w; y = yOf(0.9);
+      } else {
+        let f = this.pillFont || 15;
+        t.style.fontSize = `${f}px`;
+        w = (t.getComputedTextLength() || label.length * 0.57 * f) + 2 * f;
+        const avail = pillLeft - 10 * S - 12;
+        if (w > avail) { f *= avail / w; w = avail; t.style.fontSize = `${f}px`; }
+        h = (32 / 15) * f; x = pillLeft - 10 * S; y = CH.yTop - 30 * S;
+      }
+      b.insertBefore(el("rect", { x: x - w, y: y - h / 2, width: w, height: h, rx: h / 2, class: "lf-badge__bg" }, b), t);
+      t.setAttribute("x", x - w / 2);
+      t.setAttribute("y", y);
     }
 
     updateCards(done) {
@@ -1199,7 +1292,7 @@
       this.conceptSel.value = st.concept;
       this.sSlider.value = Math.round(st.v / 0.25);
       const raw = this.rawSteer();
-      this.sOut.textContent = `${ST.fmtRaw(raw)}`;
+      this.sOut.textContent = `α = ${ST.fmtRaw(raw)}`; // the signed α of the definitions in Finding 3
       const S_ = moveLabel(d, d.m_star), iS = d.legal.indexOf(d.m_star);
       this.updateLAUI(S_, iS);
       if (!this.steerActive()) {
@@ -1241,15 +1334,21 @@
       s.boardG.setAttribute("opacity", c);
     }
 
-    // The steering pill is drawn inside the scaled chart; give the HTML prompt buttons the same size.
+    // The pills are drawn inside the scaled chart: size their text in chart units so it shows at a constant size on
+    // screen (about 14 px, 13 px on phones), whatever the chart's scale, and give the HTML prompt buttons the same size.
     syncButtonScale() {
       const w = this.svg.getBoundingClientRect().width;
       if (!w) return;
       const k = w / W;
-      const st = this.root.style;
-      st.setProperty("--cta-font", `${((COMPACT ? 18 : 13) * k).toFixed(2)}px`);
-      st.setProperty("--cta-h", `${(28 * S * k).toFixed(2)}px`);
-      st.setProperty("--cta-pad", `${(13 * S * k).toFixed(2)}px`);
+      const f = Math.min(COMPACT ? 26 : 19, Math.max(COMPACT ? 16 : 12, (COMPACT ? 13 : 14) / k));
+      const st = this.root.style, px = f * k;
+      st.setProperty("--cta-font", `${px.toFixed(2)}px`);
+      st.setProperty("--cta-h", `${((32 / 15) * px).toFixed(2)}px`);
+      st.setProperty("--cta-pad", `${px.toFixed(2)}px`);
+      if (Math.abs(f - (this.pillFont || 0)) > 0.05) {
+        this.pillFont = f;
+        if (this.pill) { this.drawPill(this.pill.classList.contains("is-on")); this.drawBadge(this.badge.childNodes.length > 0); }
+      }
     }
 
     // Dot labels to the right of the dots (left near the end), nudged apart if they collide.
@@ -1277,24 +1376,54 @@
       const g = this.connGrow || 0;
       if (!this.data || !(this.valueStage >= 1) || g <= 0) return;
       const stage = this.root.querySelector(".lens-fig__stage");
-      if (getComputedStyle(stage).getPropertyValue("--side-by-side").trim() !== "1") return;
-      const sr = stage.getBoundingClientRect();
-      ov.setAttribute("viewBox", `0 0 ${sr.width} ${sr.height}`);
-      const ctm = this.svg.getScreenCTM();
+      const sr = stage.getBoundingClientRect(), ctm = this.svg.getScreenCTM();
       if (!ctm) return;
+      ov.setAttribute("viewBox", `0 0 ${sr.width} ${sr.height}`);
       const d = this.data;
-      [[d.m_star, COL.star], [d.m_hat, COL.hat]].forEach(([u, c]) => {
+      // where each line ends, in stage coordinates
+      const end = (u) => {
         const pt = this.svg.createSVGPoint();
         pt.x = xOf(15); pt.y = yOf(this.endValue(u));
         const sp = pt.matrixTransform(ctm);
-        const card = this.cardEls[u].querySelector(".lll-board-svg").getBoundingClientRect();
-        // the panel may still be sliding in: measure where the board will be once it settles
-        const m = new DOMMatrixReadOnly(getComputedStyle(this.valueBox).transform === "none" ? undefined : getComputedStyle(this.valueBox).transform);
-        const x0 = sp.x - sr.left + 4, y0 = sp.y - sr.top;
-        const x1 = card.left - m.m41 - sr.left - 6, y1 = card.top - m.m42 - sr.top + card.height / 2;
+        return [sp.x - sr.left, sp.y - sr.top];
+      };
+      // the panel may still be sliding in: measure where an element of it will be once it settles
+      const m = new DOMMatrixReadOnly(getComputedStyle(this.valueBox).transform === "none" ? undefined : getComputedStyle(this.valueBox).transform);
+      const rect = (e) => {
+        const b = e.getBoundingClientRect();
+        return { left: b.left - m.m41 - sr.left, right: b.right - m.m41 - sr.left, top: b.top - m.m42 - sr.top, bottom: b.bottom - m.m42 - sr.top, height: b.height };
+      };
+      if (getComputedStyle(stage).getPropertyValue("--side-by-side").trim() !== "1") return this.drawConnectorsBelow(end, rect, sr, g);
+      // panel beside the chart: one curve from each line end to the left side of its board
+      [[d.m_star, COL.star], [d.m_hat, COL.hat]].forEach(([u, c]) => {
+        const [xe, y0] = end(u), card = rect(this.cardEls[u].querySelector(".lll-board-svg"));
+        const x0 = xe + 4, x1 = card.left - 6, y1 = card.top + card.height / 2;
         const dx = Math.max(30, (x1 - x0) * 0.5);
         el("path", { d: cubicPath([[x0, y0], [x0 + dx, y0], [x1 - dx, y1], [x1, y1]], g), stroke: c, class: "lf-vconn" }, ov);
         if (g >= 0.98) el("path", { d: `M${x1 - 9},${y1 - 6} L${x1},${y1} L${x1 - 9},${y1 + 6}`, stroke: c, class: "lf-vconn-head" }, ov);
+      });
+    }
+
+    // Panel under the chart with the two cards side by side: from each line end, right past the "Final" label,
+    // down the right edge, left above the cards (below their heading) and down onto the card's tag. The arrow to
+    // the right-hand card keeps to the outside (outer lane, lower run), so the two never cross above the cards.
+    // Cards stacked (phones): no arrows.
+    drawConnectorsBelow(end, rect, sr, g) {
+      const d = this.data, ov = this.overlay;
+      const rows = [d.m_hat, d.m_star].map((u) => ({ u, color: u === d.m_star ? COL.star : COL.hat, card: rect(this.cardEls[u]), tag: rect(this.cardTags[u]) }));
+      if (Math.abs(rows[0].card.top - rows[1].card.top) > 2) return;
+      rows.sort((a, b) => a.card.left - b.card.left);
+      const lbl = this.finalTick && this.finalTick.getBoundingClientRect();
+      const [xe] = end(rows[0].u);
+      const lane = (lbl ? lbl.right - sr.left : xe + 16) + 7;
+      const top = Math.min(rows[0].card.top, rows[1].card.top), tip = top - 3, r = 8;
+      const head = this.valueBox.querySelector(".lens-fig__value-head");
+      const run = Math.min(head ? rect(head).bottom + 8 : top - 28, tip - r - 4 - 8);
+      rows.forEach((row, i) => {
+        const [x0, y0] = end(row.u), xl = lane + 8 * i, yr = run + 8 * i, xt = (row.tag.left + row.tag.right) / 2;
+        const pts = roundedPolyline([[x0 + 5, y0], [xl, y0], [xl, yr], [xt, yr], [xt, tip]], r);
+        el("path", { d: polylinePath(pts, g), stroke: row.color, class: "lf-vconn" }, ov);
+        if (g >= 0.98) el("path", { d: `M${xt - 6},${tip - 8} L${xt},${tip} L${xt + 6},${tip - 8}`, stroke: row.color, class: "lf-vconn-head" }, ov);
       });
     }
 
@@ -1324,7 +1453,7 @@
       const sy = box.top - host.top + (CH.yTop / H) * box.height;
       this.tip.style.left = `${sx}px`;
       this.tip.style.top = `${sy}px`;
-      this.tip.classList.toggle("is-left", sx > box.width * 0.62);
+      this.tip.classList.toggle("is-left", sx + this.tip.offsetWidth + 14 > box.width);
       this.tip.classList.add("is-visible");
     }
     hideTip() {
@@ -1377,17 +1506,22 @@
       this.raf = requestAnimationFrame(tick);
     }
 
+    // Start once most of the chart is on screen (70%: the boards and most of the plot), not as soon as the boards
+    // above it show, which on a large screen is already the case at page load, and not only once the plot's bottom
+    // is in view, which felt late. A chart taller than the screen starts once it fills most of it.
     autoplayWhenVisible() {
       if (reduceMotion) return this.setFront(15, { showValue: true });
+      const need = () => Math.min(0.7, (0.9 * innerHeight) / Math.max(1, this.svg.getBoundingClientRect().height));
       const io = new IntersectionObserver((entries) => {
-        if (entries.some((en) => en.isIntersecting)) {
+        if (entries.some((en) => en.isIntersecting && en.intersectionRatio >= need())) {
           io.disconnect();
-          setTimeout(() => this.play(true), 450);
+          setTimeout(() => this.play(true), 150);
         }
-      }, { threshold: 0.35 });
-      io.observe(this.root);
+      }, { threshold: Array.from({ length: 21 }, (_, i) => i / 20) });
+      io.observe(this.svg); // the chart, not the whole figure: on a phone that is taller than the screen
     }
   }
 
   window.LensFigure = LensFigure;
+  window.LLLFX = { confetti, sting }; // also for the play board's game end (play.js)
 })();

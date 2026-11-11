@@ -10,7 +10,7 @@
   const chessUrl = new URL("../vendor/chess.mjs", document.currentScript.src).href;
   const FILES = "abcdefgh";
   const SIZE = 400;
-  const { el } = window.LLLBoard;
+  const { el, figSan } = window.LLLBoard;
   const $ = (sel) => root.querySelector(sel);
 
   const ui = {
@@ -18,7 +18,7 @@
     status: $(".play__status"), promo: $(".play__promo"), think: $(".play__think"), moves: $(".play__moves"),
     undo: $('[data-act="undo"]'), lichess: $(".play__lichess"),
   };
-  const state = { Chess: null, chess: null, hist: null, human: "w", k: +ui.range.value, selected: null, last: null, token: 0, busy: false };
+  const state = { Chess: null, chess: null, hist: null, human: "w", k: +ui.range.value, selected: null, last: null, token: 0, busy: false, result: null };
 
   const label = (k) => window.LLL_BOTS.labels[k];
 
@@ -50,13 +50,14 @@
         el("circle", { cx: p.x + geo.sq / 2, cy: p.y + geo.sq / 2, r: geo.sq * (capture ? 0.44 : 0.15), class: capture ? "play__hit" : "play__dot" }, targets);
       }
     }
-    svg.addEventListener("pointerdown", (e) => pointerDown(e, svg, geo));
-    ui.board.replaceChildren(svg);
+    const old = ui.board.querySelector("svg");
+    if (old) old.replaceWith(svg);
+    else ui.board.prepend(svg);
     renderMoves();
   }
 
   function renderMoves() {
-    const san = state.chess.history();
+    const san = state.chess.history().map(figSan);
     const items = [];
     for (let i = 0; i < san.length; i += 2) items.push(`<li>${san[i]}${san[i + 1] ? " " + san[i + 1] : ""}</li>`);
     ui.moves.innerHTML = items.join("");
@@ -81,10 +82,32 @@
     return FILES[geo.flipped ? 7 - col : col] + (geo.flipped ? row + 1 : 8 - row);
   }
 
-  function pointerDown(e, svg, geo) {
+  function boardGeo() {
+    const svg = ui.board.querySelector("svg"), g = svg.querySelector(".lll-board");
+    return { svg, g, geo: { sq: +g.dataset.sq, border: +g.dataset.border, flipped: g.dataset.flipped === "1" } };
+  }
+
+  const yourTurn = () => state.chess && !state.busy && !state.chess.isGameOver() && state.chess.turn() === state.human;
+
+  // Presses arrive on this layer above the board. It stays in place while render() swaps the board below it, and
+  // a touch does not survive the removal of the element it started on. A swipe that does not pick up a piece
+  // scrolls the page, so the board cannot trap a phone's scrolling.
+  const surface = ui.board.appendChild(document.createElement("div"));
+  surface.className = "play__surface";
+  surface.addEventListener("pointerdown", pointerDown);
+  surface.addEventListener("touchstart", (e) => {
+    if (!yourTurn()) return;
+    const { svg, geo } = boardGeo(), s = squareAt(svg, geo, e.touches[0]);
+    if (!s) return;
+    const piece = state.chess.get(s);
+    const target = state.selected && state.chess.moves({ square: state.selected, verbose: true }).some((m) => m.to === s);
+    if (target || (piece && piece.color === state.human)) e.preventDefault();
+  }, { passive: false });
+
+  function pointerDown(e) {
     const { chess } = state;
-    if (e.button !== 0 || state.busy || chess.isGameOver() || chess.turn() !== state.human) return;
-    const s = squareAt(svg, geo, e);
+    if (e.button !== 0 || !yourTurn()) return;
+    const { svg, geo } = boardGeo(), s = squareAt(svg, geo, e);
     if (!s) return;
     e.preventDefault();
     ui.promo.hidden = true;
@@ -111,26 +134,36 @@
 
   // The piece on `from` follows the pointer until it is released; a press without movement counts as a click.
   function drag(down, from, wasSelected) {
-    const svg = ui.board.querySelector("svg"), g = svg.querySelector(".lll-board");
-    const geo = { sq: +g.dataset.sq, border: +g.dataset.border, flipped: g.dataset.flipped === "1" };
+    const { svg, g, geo } = boardGeo();
     const piece = g.querySelector(`use[data-sq="${from}"]`);
+    // on a touch screen the piece rides above the finger, and a ring shows the square under it
+    const lift = down.pointerType === "touch" ? geo.sq * 0.9 : 0;
+    const ring = lift ? el("circle", { r: geo.sq * 0.8, class: "play__over" }) : null;
+    const centre = (v) => geo.border + (Math.floor((v - geo.border) / geo.sq) + 0.5) * geo.sq;
     let moved = false;
     const move = (e) => {
       if (e.pointerId !== down.pointerId) return;
       if (!moved && Math.hypot(e.clientX - down.clientX, e.clientY - down.clientY) < 4) return;
       if (!moved) {
         moved = true;
+        if (ring) g.appendChild(ring);
         g.appendChild(piece); // above the other pieces and the target marks
         piece.classList.add("is-dragged");
+        surface.classList.add("is-dragging");
       }
       const p = svgPoint(svg, e);
-      piece.setAttribute("transform", `translate(${p.x - geo.sq / 2},${p.y - geo.sq / 2}) scale(${piece.dataset.s})`);
+      piece.setAttribute("transform", `translate(${p.x - geo.sq / 2},${p.y - geo.sq / 2 - lift}) scale(${piece.dataset.s})`);
+      if (ring) {
+        ring.setAttribute("cx", centre(p.x));
+        ring.setAttribute("cy", centre(p.y));
+      }
     };
     const up = (e) => {
       if (e.pointerId !== down.pointerId) return;
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", up);
+      surface.classList.remove("is-dragging");
       if (!moved) {
         if (wasSelected) {
           state.selected = null; // clicking the selected piece again deselects it
@@ -216,8 +249,8 @@
       state.last = chess.move(chosen.lan);
       hist.push(chess);
       state.busy = false;
-      ui.think.innerHTML = `${label(k)} played <b>${state.last.san}</b> (${pct(probs[pick])})` +
-        (others.length ? `; next in its policy: ${others.map(([p, i]) => `${legal[i].san} ${pct(p)}`).join(", ")}.` : ".");
+      ui.think.innerHTML = `${label(k)} played <b>${figSan(state.last.san)}</b> (${pct(probs[pick])})` +
+        (others.length ? `; next in its policy: ${others.map(([p, i]) => `${figSan(legal[i].san)} ${pct(p)}`).join(", ")}.` : ".");
       render();
       finished();
     });
@@ -229,12 +262,33 @@
       status(chess.turn() === state.human ? (chess.inCheck() ? "Check. Your move." : "Your move.") : "");
       return false;
     }
-    if (chess.isCheckmate()) status(chess.turn() === state.human ? `Checkmate. ${label(state.k)} wins.` : "Checkmate. You win!");
+    const lost = chess.isCheckmate() && chess.turn() === state.human;
+    if (chess.isCheckmate()) status(lost ? `Checkmate, you lose. ${label(state.k)} wins.` : "Checkmate, you win!");
     else if (chess.isStalemate()) status("Draw by stalemate.");
     else if (chess.isThreefoldRepetition()) status("Draw by threefold repetition.");
     else if (chess.isInsufficientMaterial()) status("Draw: insufficient material.");
     else status("Draw by the fifty-move rule.");
+    showResult(!chess.isCheckmate() ? "draw" : lost ? "lost" : "won");
     return true;
+  }
+
+  // The end of a game, unmissable: a green frame and confetti for a win; a red frame that drops twice, with the
+  // hero's "dun-dun", for a loss; a grey frame for a draw. null clears it (new game, take back).
+  function showResult(kind) {
+    if (kind === state.result) return;
+    state.result = kind;
+    ui.board.classList.remove("is-won", "is-lost", "is-draw");
+    ui.status.classList.remove("is-won", "is-lost");
+    if (!kind) return;
+    void ui.board.offsetWidth; // restart the frame's animation
+    ui.board.classList.add(`is-${kind}`);
+    if (kind !== "draw") ui.status.classList.add(`is-${kind}`);
+    const fx = window.LLLFX;
+    if (!fx) return;
+    if (kind === "won") {
+      const r = ui.board.getBoundingClientRect();
+      fx.confetti(r.left + r.width / 2, r.top + r.height / 2);
+    } else if (kind === "lost") fx.sting();
   }
 
   function status(text, retry) {
@@ -259,6 +313,7 @@
     state.hist = new window.LLLLc0.History(state.chess);
     state.selected = state.last = null;
     state.busy = false;
+    showResult(null);
     ui.promo.hidden = true;
     ui.think.textContent = "";
     render();
@@ -278,6 +333,7 @@
     const prev = chess.history({ verbose: true });
     state.last = prev[prev.length - 1] || null;
     state.selected = null;
+    showResult(null);
     ui.promo.hidden = true;
     ui.think.textContent = "";
     render();
@@ -290,6 +346,7 @@
     ui.elo.textContent = `${window.LLL_BOTS.blitz[state.k]} Lichess blitz`;
   }
 
+  root.lllShowResult = showResult; // lets a test show each ending without playing a game against the server
   ui.range.addEventListener("input", showLayer);
   document.addEventListener("lll-bots", showLayer); // live Lichess ratings arrived
   root.querySelector('[data-act="white"]').addEventListener("click", () => newGame("w"));
@@ -297,13 +354,11 @@
   ui.undo.addEventListener("click", takeBack);
   showLayer();
 
-  // Wake the server once the board comes into view, so the first move is quick.
-  new IntersectionObserver((entries, obs) => {
-    if (entries.some((e) => e.isIntersecting)) {
-      fetch(API + "/", { mode: "no-cors" }).catch(() => {});
-      obs.disconnect();
-    }
-  }, { rootMargin: "600px" }).observe(root);
+  // Wake the server at the first press on the board or its controls, so the first reply comes sooner. Until
+  // someone starts to play, the page sends nothing to the server.
+  const wake = () => fetch(API + "/", { mode: "no-cors" }).catch(() => {});
+  root.addEventListener("pointerdown", wake, { once: true });
+  root.addEventListener("keydown", wake, { once: true });
 
   import(chessUrl).then(({ Chess }) => {
     state.Chess = Chess;

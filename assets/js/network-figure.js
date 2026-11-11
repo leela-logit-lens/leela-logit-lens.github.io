@@ -12,9 +12,8 @@
   const T = { board: 0.4, brace: 0.4, bars: 0.45, row: 0.08, label: 0.05, bar: 0.25, val: 0.8, dots: 1.0, note: 1.05, fade: 0.4 };
   const clamp01 = (x) => Math.max(0, Math.min(1, x));
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const FIG = { K: "♔", Q: "♕", R: "♖", B: "♗", N: "♘" };
-  const figurine = (san) => (FIG[san[0]] ? FIG[san[0]] + san.slice(1) : san); // tooltips (HTML)
   const pct1 = (p) => (p * 100).toFixed(1) + "%";
+  const moveText = (san) => ("KQRBN".includes(san[0]) ? san.slice(1) : san).replace("x", "×"); // after the figurine
   const N_COLS = 8;
   // Read-out columns of the stylized network → lens index K (0 = input encoding, K = after layer K-1).
   const PANELS = [
@@ -39,17 +38,19 @@
       L.braceOut = { x: 897, dir: "right" };
       // (move labels sit well clear of the brace tip, so piece icons never touch it)
       L.outBars = { brace: 1150, labelX: 1238, axisX: 1248, rows: [121, 167, 211], dotsY: 262, barMax: 70 };
-      L.outNote = { tx: 1166, ty: 44, rot: -1.5, sx: 1160, sy: 62, bend: 0.22 }; // top right of the output, left of the legend
+      L.outNote = { tx: 1180, ty: 44, rot: -1.5, sx: 1172, sy: 62, bend: 0.22 }; // top right of the output, left of the legend
       L.legend = { x: 1388, y: 66, w: 244, rowH: 40 };
       const xs = [62, 440, 828, 1226], f = [0.9, 0.62, 0.33, 0.06];
       L.panels = PANELS.map((p, i) => {
         const x = xs[i], y = 362, size = 190, left = f[i] >= 0.5; // title on the side the lens arrow does not land on
         // hand-placed note (as if annotated by hand): text position and tilt, arrow start and bend
         const hand = [
-          { tx: x - 22, ty: y + size + 40, rot: -1.5, sx: x + 36, sy: y + size + 14, bend: 0.3 },
+          // ends at the queen's lower-left corner, clear of its move arrows that leave d4 downwards; the path runs past b1 and
+          // through c2 and c3, all empty, between the pieces on b2 and c1
+          { tx: x - 22, ty: y + size + 40, rot: -1.5, sx: x + 48, sy: y + size + 12, bend: -0.28, end: [-0.38, 0.34] },
           { tx: x + 56, ty: y + size + 36, rot: 1.5, sx: x + 112, sy: y + size + 14, bend: 0.22 }, // fan to three captures
-          { tx: x + size + 14, ty: y + size + 30, rot: -2, sx: x + size + 8, sy: y + size + 16, bend: 0.35 },
-          { tx: x + size + 30, ty: y + 24, rot: -2.5, sx: x + size + 24, sy: y + 14, bend: -0.4 },
+          { tx: x + size + 14, ty: y + size + 30, rot: -2, sx: x + size + 8, sy: y + size + 16, bend: -0.35 }, // curves under the board, clear of the king on h1
+          { tx: x + size + 30, ty: y + 14, rot: -2.5, sx: x + size + 40, sy: y + 21, bend: -0.35 }, // above the bars' axis; arrow from under the start of "Rook"
         ][i];
         return { ...p, x, y, size, hand, arrowTo: x + size * f[i], brace: x + size + 8,
           bars: { labelX: x + size + 94, axisX: x + size + 104, rows: [y + 55, y + 97, y + 139], dotsY: y + 182, barMax: 64 },
@@ -96,9 +97,9 @@
       this.timers = [];
       this.root.classList.add("net-fig");
       this.root.innerHTML = `
+        <p class="net-fig__puzzle"></p>
         <div class="net-fig__main">
           <svg class="net-fig__svg" role="img"></svg>
-          <div class="lens-fig__tip net-fig__tip" role="status" aria-live="polite"></div>
         </div>
         <div class="lens-fig__controls">
           <button class="btn btn--icon net-fig__play" type="button" aria-label="Play">
@@ -113,7 +114,6 @@
           <output class="lens-fig__layer">Input board</output>
         </div>`;
       this.svg = this.root.querySelector("svg");
-      this.tip = this.root.querySelector(".net-fig__tip");
       this.slider = this.root.querySelector("input[type=range]");
       this.out = this.root.querySelector("output");
       this.root.querySelector(".net-fig__replay").addEventListener("click", () => this.play(true));
@@ -126,8 +126,27 @@
 
     load(data) {
       this.data = data;
+      this.root.querySelector(".net-fig__puzzle").innerHTML = this.describe(data);
       this.draw();
       this.setFront(-1, true);
+      // the label column is measured in the page font: redraw once it has loaded, unless the figure is already running
+      if (document.fonts) document.fonts.ready.then(() => { if (!this.playing && this.front < 0) { this.draw(); this.setFront(-1, true); } });
+    }
+
+    // The puzzle and its solution line above the figure: "Black to move, mate in two: 1…♘g3+ 2.hxg3 ♖h6#".
+    describe(d) {
+      const side = d.turn === "b" ? "Black" : "White", { figSan } = window.LLLBoard;
+      const words = ["", "one", "two", "three", "four", "five"], mate = (d.themes || []).map((t) => /^mateIn(\d)$/.exec(t)).find(Boolean);
+      let n = 1, line = "";
+      d.pv_san.map(figSan).forEach((m, i) => {
+        const white = (d.turn === "w") === (i % 2 === 0);
+        if (i === 0 && !white) line += `1…${m}`;
+        else if (white) line += `${i ? " " : ""}${n}.${m}`;
+        else line += ` ${m}`;
+        if (!white) n += 1;
+      });
+      const what = mate ? `${side} to move, mate in ${words[+mate[1]] || mate[1]}` : `${side} to move`;
+      return `${what}: <span class="mono">${line}</span> · <a href="${d.puzzle_url}" target="_blank" rel="noopener">puzzle ${d.id}</a>`;
     }
 
     topK(k, n) {
@@ -158,17 +177,16 @@
       list.forEach((m, i) => {
         const y = b.rows[i], san = d.san[m.uci], piece = "KQRBN".includes(san[0]) ? san[0] : null, dt = i * T.row;
         const lab = this.anim(el("g", {}, g), "fade", t0 + T.label + dt);
-        const t = el("text", { x: b.labelX, y, class: "nf-move", "text-anchor": "end", "dominant-baseline": "central" }, lab);
-        t.textContent = piece ? san.slice(1) : san;
-        if (piece) {
-          const ps = 24 * S, tw = t.getComputedTextLength ? t.getComputedTextLength() : san.length * 10 * S;
-          el("use", { href: `#lll-piece-w${piece.toLowerCase()}`, transform: `translate(${b.labelX - tw - ps},${y - ps / 2 - 1}) scale(${ps / 45})` }, lab);
-        }
+        // as in the paper's Figure 2: the labels start in one column (the widest ends at the bars), figurine and move
+        // written together, captures with ×
+        const x0 = b.labelX - this.labelW, ps = 24 * S;
+        if (piece) el("use", { href: `#lll-piece-w${piece.toLowerCase()}`, transform: `translate(${x0},${y - ps / 2 - 1}) scale(${ps / 45})` }, lab);
+        el("text", { x: piece ? x0 + ps : x0, y, class: "nf-move", "dominant-baseline": "central" }, lab).textContent = moveText(san);
         const w = Math.max(3, m.p * b.barMax);
         this.anim(el("path", { d: `M${b.axisX},${y - h / 2} h${w - 5} q5,0 5,5 v${h - 10} q0,5 -5,5 h${-(w - 5)} z`, fill: RANK[i], class: "nf-bar" }, g), "grow", t0 + T.bar + dt);
         this.anim(el("text", { x: b.axisX + w + 6 * S, y, class: "nf-val", "dominant-baseline": "central" }, g), "fade", t0 + T.val + dt).textContent = pct1(m.p);
       });
-      this.anim(el("text", { x: b.labelX - 18 * S, y: b.dotsY, class: "nf-dots", "text-anchor": "middle" }, g), "fade", t0 + T.dots).textContent = "⋮";
+      this.anim(el("text", { x: b.labelX - this.labelW / 2, y: b.dotsY, class: "nf-dots", "text-anchor": "middle" }, g), "fade", t0 + T.dots).textContent = "⋮";
       return t0 + T.val + (list.length - 1) * T.row + T.fade; // when the last value is fully shown
     }
 
@@ -182,6 +200,14 @@
       svg.setAttribute("aria-label", `Leela's policy read out after the input encoding and layers 4, 9 and 12 for puzzle ${d.id}: ` +
         PANELS.map((p) => `${p.name} prefers ${d.san[this.topK(p.k, 1)[0].uci]}`).join(", ") +
         `; the full network plays ${d.san[this.topK(15, 1)[0].uci]}.`);
+      // width of the widest move label (figurine and move) among all read-outs: the column the labels start in
+      const probe = el("text", { class: "nf-move" }, svg);
+      this.labelW = Math.max(...[15, ...PANELS.map((p) => p.k)].flatMap((k) => this.topK(k, 3)).map((m) => {
+        const san = d.san[m.uci];
+        probe.textContent = moveText(san);
+        return (probe.getComputedTextLength() || san.length * 10 * S) + ("KQRBN".includes(san[0]) ? 24 * S : 0);
+      }));
+      probe.remove();
       // The sweep: a mask with a soft left-to-right edge that reveals the network at a constant pace
       const defs = el("defs", {}, svg);
       this.sweepGrad = el("linearGradient", { id: "nf-sweep-grad", gradientUnits: "userSpaceOnUse", x1: 0, y1: 0, x2: 1, y2: 0 }, defs);
@@ -213,13 +239,10 @@
         if (lensCol.has(i)) {
           el("rect", { x: cx - B / 2 - 7, y: L.colTop, width: B + 14, height: L.colBot - L.colTop, rx: 6, class: "nf-lensbox" }, g);
           if (L.compact) el("text", { x: cx, y: L.colBot + 30, class: "nf-lenslabel", "text-anchor": "middle" }, g).textContent = lensCol.get(i).name.replace("Input encoding", "Input");
-          const hit = el("rect", { x: cx - 30, y: L.colTop - 10, width: 60, height: L.colBot - L.colTop + 20, class: "lf-hit" }, g);
-          hit.addEventListener("pointerenter", () => this.hoverCol(lensCol.get(i), cx));
-          hit.addEventListener("pointerleave", () => this.tip.classList.remove("is-visible"));
         }
         return g;
       });
-      if (L.compact) el("text", { x: L.W / 2, y: L.netTitleY, class: "nf-title nf-title--lens", "text-anchor": "middle" }, svg).textContent = "Logit lens read-outs";
+      if (L.compact) el("text", { x: 20, y: L.netTitleY, class: "nf-title nf-title--lens" }, svg).textContent = "Logit lens read-outs";
 
       // Output: brace, board, top three moves
       // (staged like a read-out: brace from the network, board, brace, moves, note)
@@ -301,7 +324,8 @@
 
     // A hand-drawn note: slightly tilted italic and a curved pen arrow that stops at the edge of the
     // square (on the side facing the note), so it does not cover the piece or the move arrows.
-    // h = {tx, ty, rot, sx, sy, bend}: text position and tilt, arrow start, bend (fraction of its length).
+    // h = {tx, ty, rot, sx, sy, bend, end}: text position and tilt, arrow start, bend (fraction of its length), and
+    // optionally where on the square the arrow ends ([dx, dy] from its centre, in squares; default: the side facing the start).
     // Returns when it is fully shown (seconds after the panel turns on).
     annotate(parent, b, squares, lines, h, t) {
       const border = b.size * 0.045, sq = (b.size - 2 * border) / 8;
@@ -317,7 +341,8 @@
         const bend = squares.length > 1 ? (Math.abs(cx - h.sx) < 18 ? 0 : (cx < h.sx ? -1 : 1) * Math.abs(h.bend)) : h.bend;
         const tj = t + 0.15 + j * 0.12;
         const dl = Math.hypot(h.sx - cx, h.sy - cy);
-        const ex = cx + ((h.sx - cx) / dl) * sq * 0.45, ey = cy + ((h.sy - cy) / dl) * sq * 0.45;
+        const ex = h.end ? cx + h.end[0] * sq : cx + ((h.sx - cx) / dl) * sq * 0.45;
+        const ey = h.end ? cy + h.end[1] * sq : cy + ((h.sy - cy) / dl) * sq * 0.45;
         const len = Math.hypot(ex - h.sx, ey - h.sy), nx = -(ey - h.sy) / len, ny = (ex - h.sx) / len;
         const qx = (h.sx + ex) / 2 + nx * bend * len, qy = (h.sy + ey) / 2 + ny * bend * len;
         const d = `M${h.sx},${h.sy} Q${qx},${qy} ${ex},${ey}`;
@@ -332,20 +357,6 @@
         this.anim(el("path", { d: head, class: "nf-ann__arrow" }, g), "fade", tj + 0.35);
       });
       return t + 0.5 + (squares.length - 1) * 0.12 + T.fade;
-    }
-
-    hoverCol(p, cx) {
-      if (p.col > this.front) return;
-      const top = this.topK(p.k, 3);
-      this.tip.innerHTML = `<div class="tip__head">${p.name}</div>` + top.map((m, i) =>
-        `<div class="tip__row"><span class="tip__key" style="background:${RANK[i]}"></span><span class="mono">${figurine(this.data.san[m.uci])}</span><span class="tip__val mono">${pct1(m.p)}</span></div>`).join("");
-      const box = this.svg.getBoundingClientRect(), host = this.root.querySelector(".net-fig__main").getBoundingClientRect();
-      const sx = box.left - host.left + (cx / this.L.W) * box.width;
-      const sy = box.top - host.top + (this.L.colTop / this.L.H) * box.height;
-      this.tip.style.left = `${sx}px`;
-      this.tip.style.top = `${sy}px`;
-      this.tip.classList.toggle("is-left", sx > box.width * 0.6);
-      this.tip.classList.add("is-visible");
     }
 
     // front: continuous position of the sweep in column units, from -1 (nothing) through i (column i
@@ -419,7 +430,7 @@
       if (reduceMotion) return this.setFront(N_COLS, true);
       const io = new IntersectionObserver((entries) => {
         if (entries.some((e) => e.isIntersecting)) { io.disconnect(); this.play(true); }
-      }, { threshold: 0.4 });
+      }, { rootMargin: "0px 0px -40% 0px" }); // once its top is well on screen; on a phone it is taller than the screen
       io.observe(this.root);
     }
   }

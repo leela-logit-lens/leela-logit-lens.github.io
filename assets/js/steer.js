@@ -1,12 +1,12 @@
 /* Steering explorer: the output policy of a forgotten puzzle when a concept direction is
    added to the residual stream after layer 13, at the strengths of the paper's grid.
-   Shows the full distribution, its entropy and random directions of equal norm, so that
-   "it only flattens the distribution" is visible at a glance. */
+   Shows the full distribution, its entropy and random directions of equal norm. */
 (function () {
-  const { el, boardSvg } = window.LLLBoard;
+  const { el, boardSvg, figSan } = window.LLLBoard;
   const COL = { star: "#00b894", hat: "#d63031", other: "#8a939b" };
   const ST = window.LLLSteer;
   const CONCEPTS = ST.CONCEPTS;
+  const pts = (d) => `${(d * 100).toFixed(1)} points`; // a difference of two percentages
   const LEVELS = ST.LEVELS; // in "against the safety prior" units; the raw strength is ST.raw(concept, v)
   const pct1 = (p) => (p * 100).toFixed(1) + "%";
   const entropy = ST.entropy;
@@ -26,8 +26,9 @@
       this.root.innerHTML = `
         <div class="steer__controls">
           <div class="steer__group">
-            <div class="steer__label">Puzzle</div>
+            <div class="steer__label">Puzzle <span class="steer__hint">✓ / ✗: whether the current setting solves the puzzle's full line</span></div>
             <div class="steer__puzzles" role="radiogroup" aria-label="Puzzle"></div>
+            <p class="steer__hardnote" hidden></p>
           </div>
           <div class="steer__group">
             <div class="steer__label">Direction added to the residual stream after layer 13</div>
@@ -56,7 +57,7 @@
         b.className = "seg__btn";
         b.dataset.key = c.key;
         b.setAttribute("role", "radio");
-        b.innerHTML = `${c.label}${c.note ? `<small>${c.note}</small>` : ""}`;
+        b.innerHTML = `<i class="seg__sw" style="background:${c.color}" aria-hidden="true"></i>${c.label}${c.note ? `<small>${c.note}</small>` : ""}`;
         b.addEventListener("click", () => {
           if (c.key === "random" && this.concept === "random") this.randomIdx = (this.randomIdx + 1) % 3;
           this.concept = c.key;
@@ -72,13 +73,14 @@
       });
     }
 
-    // groups: [{group, items: [{id, meta, where}]}]; each chip shows whether the current setting
+    // groups: [{group, items: [{id, meta, where, hard}]}]; each chip shows whether the current setting
     // solves that puzzle's full line (from the index, so no puzzle data has to be loaded).
     setPuzzles(groups, loader) {
       this.loader = loader;
       const box = this.$(".steer__puzzles");
       box.innerHTML = "";
       this.chipMeta = {};
+      this.hard = new Set(groups.flatMap((g) => g.items.filter((p) => p.hard).map((p) => p.id)));
       groups.forEach((g) => {
         if (!g.items.length) return;
         const row = document.createElement("div");
@@ -112,8 +114,24 @@
 
     async select(id) {
       this.data = await this.loader(id);
-      this.root.querySelectorAll(".steer__puzzles .chip").forEach((c) => c.setAttribute("aria-checked", c.dataset.id === id));
+      this.root.querySelectorAll(".steer__puzzles .chip").forEach((c) => {
+        c.setAttribute("aria-checked", c.dataset.id === id);
+        if (c.dataset.id !== id) return;
+        const row = c.closest(".steer__chiprow"); // on a phone a swipeable row: keep the chosen puzzle in it
+        row.scrollLeft += c.getBoundingClientRect().left - row.getBoundingClientRect().left - 16;
+      });
+      this.showHardNote(id);
       this.render();
+    }
+
+    // Hard cases: the move the network plays is itself forcing, so steering toward aggressive play lifts it too.
+    showHardNote(id) {
+      const note = this.$(".steer__hardnote"), d = this.data;
+      note.hidden = !this.hard.has(id);
+      if (note.hidden) return;
+      const san = d.san[d.m_hat], kind = san.includes("x") ? (san.includes("+") ? "a capture with check" : "a capture") : san.includes("+") ? "a check" : "an attacking move";
+      note.innerHTML = `<b>Why this one is hard:</b> the move the network plays, <span class="mono">${d.turn === "b" ? "…" : ""}${figSan(san)}</span>, ` +
+        `is itself forcing (${kind}), so steering toward aggressive play lifts it as well.`;
     }
 
     raw() {
@@ -130,7 +148,7 @@
       this.updateChipMarks();
       const rnd = this.concept === "random";
       const raw = this.raw(), off = raw === 0;
-      this.$(".steer__s").textContent = off ? "0 (off)" : `raw ${ST.fmtRaw(raw)}` + (rnd ? ` · direction ${this.randomIdx + 1}/3` : "");
+      this.$(".steer__s").textContent = off ? "0 (off)" : `α = ${ST.fmtRaw(raw)}` + (rnd ? ` · direction ${this.randomIdx + 1}/3` : ""); // the signed α of the definitions in Finding 3
       const base = d.legal.map((u) => d.probs[u][15]);
       const st = this.dist(15);
       const iStar = d.legal.indexOf(d.m_star), iHat = d.legal.indexOf(d.m_hat);
@@ -153,7 +171,7 @@
       }));
       const cap = document.createElement("div");
       cap.className = "steer__board-cap";
-      cap.innerHTML = `Top moves of the ${off ? "unsteered" : "steered"} output · <a href="${d.puzzle_url}" target="_blank" rel="noopener">puzzle ${d.id}</a>`;
+      cap.innerHTML = `${d.turn === "b" ? "Black" : "White"} to move · top moves of the ${off ? "unsteered" : "steered"} output · <a href="${d.puzzle_url}" target="_blank" rel="noopener">puzzle ${d.id}</a>`;
       boardBox.appendChild(cap);
 
       // Distribution bars: rows = union of top moves, solution and played move
@@ -167,7 +185,7 @@
         const kind = i === iStar ? "star" : i === iHat ? "hat" : "other";
         const tag = kind === "star" ? "solution" : kind === "hat" ? "played" : "";
         return `<div class="sbar sbar--${kind}">
-          <span class="sbar__move mono">${d.turn === "b" ? "…" : ""}${d.san[d.legal[i]]}${tag ? `<small>${tag}</small>` : ""}</span>
+          <span class="sbar__move mono">${d.turn === "b" ? "…" : ""}${figSan(d.san[d.legal[i]])}${tag ? `<small>${tag}</small>` : ""}</span>
           <span class="sbar__track"><span class="sbar__base" style="--v:${base[i] / scale}"></span><span class="sbar__steer" style="--v:${st[i] / scale}"></span></span>
           <span class="sbar__val mono">${pct1(base[i])} <span class="arrow">→</span> <b>${pct1(st[i])}</b></span>
         </div>`;
@@ -183,17 +201,16 @@
       const A = window.LLL_AGG;
       const nRandTop = rs ? rs.filter((r) => r["15"].top === d.m_star).length : null;
       const medP = rs ? median(rs.map((r) => r["15"].p_star)) : null;
-      const medH = rs ? median(rs.map((r) => r["15"].H)) : null;
       this.$(".steer__stats").innerHTML = `
         <div class="stat ${solved ? "stat--good" : "stat--bad"}">
           <div class="stat__k">Top move</div>
-          <div class="stat__v mono">${d.turn === "b" ? "…" : ""}${d.san[d.legal[topSteer]]}</div>
+          <div class="stat__v mono">${d.turn === "b" ? "…" : ""}${figSan(d.san[d.legal[topSteer]])}</div>
           <div class="stat__s">${solved ? "the solution" : topSteer === iHat ? "the quiet move, as unsteered" : "not the solution"}</div>
         </div>
         <div class="stat">
           <div class="stat__k">P(solution)</div>
           <div class="stat__v mono">${pct1(base[iStar])} → ${pct1(st[iStar])}</div>
-          <div class="stat__s">margin to the runner-up: ${solved ? "+" + pct1(st[iStar] - st[order[1]]) : "−" + pct1(st[order[0]] - st[iStar])}</div>
+          <div class="stat__s">margin to the runner-up: ${solved ? "+" + pts(st[iStar] - st[order[1]]) : "−" + pts(st[order[0]] - st[iStar])}</div>
         </div>
         <div class="stat">
           <div class="stat__k">Entropy of the output</div>
@@ -204,12 +221,12 @@
         <div class="stat">
           <div class="stat__k">50 random directions, same norm</div>
           <div class="stat__v mono">${rs ? `${nRandTop} / 50` : "—"}</div>
-          <div class="stat__s">${rs ? `put the solution on top · median P(solution) ${pct1(medP)}, median entropy ${medH.toFixed(2)}` : "set a strength to compare"}</div>
+          <div class="stat__s">${rs ? `put the solution on top · median P(solution) ${pct1(medP)}` : "set a strength to compare"}</div>
         </div>
         <p class="steer__agg">${agg ? (rnd
           ? "A random direction with the same norm as the concept directions, for comparison."
           : `This exact setting, across all ${A.n_forgotten} forgotten puzzles of the 10k set: <b>${Math.round(agg.forgotten * 100)}% recovered</b>; ` +
-            `solve rate on all puzzles ${(A.baseline.solve * 100).toFixed(1)}% → ${(agg.solve * 100).toFixed(1)}%; median entropy change ${agg.dH_all >= 0 ? "+" : "−"}${Math.abs(agg.dH_all).toFixed(2)} nats.`)
+            `solve rate on all puzzles (in-sample) ${(A.baseline.solve * 100).toFixed(1)}% → ${(agg.solve * 100).toFixed(1)}%.`)
           : "Move the slider to steer. Right of 0 reverses the late-layer shift toward safe play; left of 0 strengthens it."}</p>`;
     }
 

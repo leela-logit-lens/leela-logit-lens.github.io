@@ -163,5 +163,24 @@
     requestAnimationFrame(step);
   }
 
-  window.LLLBoard = { drawBoard, boardSvg, animateMove, el, NS };
+  // A chart's hover tip. With a mouse it follows the pointer. With touch, a tap or a sideways slide shows it and it
+  // stays until the next tap elsewhere: pointerleave fires as the finger lifts, so it cannot close the tip there.
+  let openTip = null;
+  document.addEventListener("pointerdown", (e) => {
+    if (openTip && !e.target.closest(".lf-hit")) { openTip(); openTip = null; }
+  });
+  function hoverTip(hit, show, hide) {
+    const on = (e) => { openTip = hide; show(e); };
+    ["pointerenter", "pointermove", "pointerdown"].forEach((type) => hit.addEventListener(type, on));
+    hit.addEventListener("pointerleave", (e) => { if (e.pointerType !== "touch") hide(); });
+    hit.addEventListener("pointercancel", hide);
+  }
+
+  // Moves in figurine notation, as in the paper (skak): the piece letter becomes ♔♕♖♗♘, which the page shows in its
+  // bundled figurine font (assets/css/fonts.css). FIGURINES = false goes back to letters. Screen-reader labels keep letters.
+  const FIGURINES = true;
+  const FIG = { K: "♔", Q: "♕", R: "♖", B: "♗", N: "♘" };
+  const figSan = (san) => (FIGURINES ? san.replace(/^[KQRBN]/, (p) => FIG[p]).replace(/=([QRBN])/, (m, p) => "=" + FIG[p]) : san);
+
+  window.LLLBoard = { drawBoard, boardSvg, animateMove, hoverTip, el, NS, figSan };
 })();

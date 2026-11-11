@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-design="paper">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -8,38 +8,38 @@
   <meta property="og:title" content="The Algorithm Is Not the Behavior" />
   <meta property="og:description" content="Learned priors override look-ahead in a chess-playing neural network. NeurIPS 2026 (oral)." />
   <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://leela-logit-lens.github.io/" />
+  <meta property="og:image" content="https://leela-logit-lens.github.io/assets/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Leela's policy read out after every layer for a chess puzzle: the winning queen sacrifice reaches 88% just before the end, then the output plays a quiet move." />
+  <meta name="twitter:card" content="summary_large_image" />
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/css/site.css?v=20261030-20" />
+  <link rel="stylesheet" href="assets/css/fonts.css?v=20261111-01" />
+  <link rel="stylesheet" href="assets/css/site.css?v=20261111-01" />
 </head>
 <body>
   <a class="sr-only sr-only--focusable" href="#tldr">Skip to summary</a>
 
-  <header class="topbar">
+  <!-- light navigation bar: slides in once the hero's buttons have scrolled away (site.js) -->
+  <header class="topbar" id="topbar">
     <div class="topbar__inner">
       <a class="topbar__brand" href="#top">The Algorithm Is Not the Behavior</a>
+      <nav class="topbar__nav" aria-label="Sections">
+        <a href="#setup" data-spy-until="#fig2-section">Method</a>
+        <a href="#forgotten">Forgotten puzzles</a>
+        <a href="#lookahead">Look-ahead</a>
+        <a href="#priors">Safety priors</a>
+        <a href="#search">Training target</a>
+        <a href="#bots">Play</a>
+        <a href="#bibtex">Cite</a>
+      </nav>
       <nav class="topbar__links" aria-label="Paper links">
         <a class="pill" href="https://arxiv.org/abs/2508.21380">Paper</a>
-        <a class="pill" href="#" data-todo="code">Code</a>
-        <a class="pill" href="#bibtex">BibTeX</a>
+        <a class="pill" href="https://github.com/hartigel/leela-logit-lens">Code</a>
       </nav>
     </div>
   </header>
-
-  <nav class="sidenav" aria-label="Sections">
-    <ol>
-      <li><a href="#top">Overview</a></li>
-      <li><a href="#forgotten">Forgotten puzzles</a></li>
-      <li><a href="#lookahead">Look-ahead</a></li>
-      <li><a href="#priors">Safety priors</a></li>
-      <li><a href="#scope">Search &amp; scope</a></li>
-      <li><a href="#implications">Implications</a></li>
-      <li><a href="#more">More results</a></li>
-      <li><a href="#bibtex">Citation</a></li>
-    </ol>
-  </nav>
 
   <main id="top">
     <section class="hero">
@@ -55,14 +55,24 @@
           <span>Wojciech Samek<sup>1,3</sup></span>
         </p>
         <p class="affils"><sup>1</sup>Fraunhofer HHI &nbsp; <sup>2</sup>TU Dublin &nbsp; <sup>3</sup>TU Berlin</p>
+        <p class="contact">{<a data-mail="elias.sandmann">elias.sandmann</a>, <a data-mail="sebastian.lapuschkin">sebastian.lapuschkin</a>, <a data-mail="wojciech.samek">wojciech.samek</a>}@hhi.fraunhofer.de</p>
+        <!-- logos: Fraunhofer HHI and TU Berlin, official SVGs (hhi.fraunhofer.de, tu.berlin), inlined so they follow the theme -->
+        <div class="logos">
+          <a class="logo logo--hhi" href="https://www.hhi.fraunhofer.de/en/departments/ai/research-groups/explainable-artificial-intelligence.html" title="Explainable AI group at Fraunhofer HHI"><svg viewBox="0 0 258 72" fill="currentColor" role="img" aria-label="Fraunhofer HHI"><path class="hhi-logo__mark" d="M0,41.697c9.874-5.083,24.338-13.302,41.507-25.317v-4.033C26.396,22.233,11.031,30.171,0,35.422V41.697z"/><path class="hhi-logo__mark" d="M0,29.654c10.994-4.479,26.36-11.399,41.507-20.408V7.255C27.271,14.317,12.48,18.737,0,21.493V29.654z"/><path class="hhi-logo__mark" d="M41.507,41.717V21.432c-9.45,7.966-18.809,14.864-26.67,20.285H41.507z"/><path class="hhi-logo__mark" d="M9.53,41.717c7.465-4.432,16.526-10.215,25.55-16.974c2.105-1.578,4.255-3.203,6.428-4.883v-2.514 C28.151,27.359,14.519,35.706,3.869,41.717H9.53z"/><path class="hhi-logo__mark" d="M0,18.542c12.14-2.135,26.993-5.976,41.507-12.874V3.407C26.881,9.973,12.242,12.757,0,13.748V18.542z"/><path class="hhi-logo__mark" d="M0,0v11.62c0.907-0.056,1.831-0.121,2.775-0.194c10.093-0.776,23.867-2.56,38.732-8.987V0H0z"/><path class="hhi-logo__gap" d="M0,11.62v2.128c12.242-0.991,26.881-3.775,41.507-10.341V2.439C26.643,8.866,12.868,10.65,2.775,11.426 C1.831,11.5,0.907,11.564,0,11.62z"/><path class="hhi-logo__gap" d="M0,21.493c12.48-2.756,27.271-7.176,41.507-14.238V5.669C26.993,12.566,12.14,16.407,0,18.542V21.493z"/><path class="hhi-logo__gap" d="M0,35.422c11.031-5.251,26.396-13.189,41.507-23.075V9.246C26.36,18.255,10.994,25.175,0,29.654V35.422z"/><path class="hhi-logo__gap" d="M9.53,41.717h5.308c7.861-5.42,17.22-12.319,26.67-20.285V19.86c-2.173,1.68-4.322,3.305-6.428,4.883 C26.056,31.502,16.995,37.285,9.53,41.717z"/><path class="hhi-logo__gap" d="M0,41.717h3.869c10.65-6.011,24.282-14.357,37.638-24.371V16.38C24.338,28.396,9.874,36.614,0,41.697V41.717 z"/><path d="M243.927,41.697h5.338v-7.534c0-2.947,0-8.369,4.34-8.369c0.957,0,1.916,0.158,2.395,0.439v-5.378 c-0.562-0.16-1.119-0.16-1.635-0.16c-3.188,0-5.379,3.23-5.617,5.138h-0.082v-4.658h-4.738V41.697z M238.587,36.199 c-1.994,1.114-4.223,2.073-6.816,2.073c-3.301,0-5.613-1.873-5.857-5.185h14.184c0-7.172-2.148-12.391-9.762-12.391 c-6.371,0-9.52,4.9-9.52,10.838c0,6.738,3.941,10.641,10.719,10.641c2.871,0,5.096-0.557,7.053-1.635V36.199z M225.913,29.422 c0.244-2.75,1.752-4.821,4.742-4.821s4.188,2.232,4.344,4.821H225.913z M208.86,41.697h5.338v-16.62h4.66v-3.903h-4.66v-2.551 c0-1.593,0.561-3.149,2.355-3.149c1.154,0,1.832,0.44,2.305,0.72l0.441-4.424c-1.033-0.239-2.549-0.439-3.904-0.439 c-4.225,0-6.535,2.869-6.535,6.973v2.87h-3.943v3.903h3.943V41.697z M187.624,30.935c0-3.068,1.672-6.097,5.141-6.097 c3.508,0,5.178,2.95,5.178,6.097c0,3.429-1.072,7.095-5.178,7.095C188.696,38.029,187.624,34.322,187.624,30.935 M182.042,31.576 c0,5.893,3.949,10.598,10.723,10.598c6.812,0,10.756-4.705,10.756-10.598c0-6.776-4.656-10.88-10.756-10.88 C186.708,20.695,182.042,24.8,182.042,31.576 M159.81,41.697h5.342V31.652c0-2.628,0.836-6.814,4.703-6.814 c3.426,0,3.463,3.389,3.463,5.898v10.961h5.336V28.744c0-4.622-2.111-8.049-6.969-8.049c-2.789,0-5.1,1.276-6.449,3.268h-0.084 V11.811h-5.342V41.697z M135.468,41.697h5.336V31.652c0-2.628,0.84-6.814,4.703-6.814c3.426,0,3.465,3.389,3.465,5.898v10.961h5.344 V28.744c0-4.622-2.115-8.049-6.975-8.049c-2.789,0-5.062,0.918-6.734,3.268h-0.084v-2.789h-5.055V41.697z M129.966,21.175h-5.342 v10.042c0,2.627-0.836,6.812-4.701,6.812c-3.427,0-3.467-3.389-3.467-5.899V21.175h-5.339v12.95c0,4.621,2.112,8.049,6.973,8.049 c2.788,0,5.101-1.273,6.733-3.268h0.081v2.791h5.061V21.175z M93.544,35.759c0-3.15,3.546-3.548,5.938-3.548h2.312 c0,1.596-0.239,3.067-1.117,4.226c-0.836,1.11-2.109,1.834-3.744,1.834C95.021,38.271,93.544,37.51,93.544,35.759 M90.836,26.833 c1.793-1.357,4.063-2.232,6.336-2.232c3.146,0,4.621,1.115,4.621,4.424h-2.949c-2.23,0-4.861,0.196-6.893,1.194 c-2.033,0.998-3.505,2.79-3.505,5.861c0,3.901,3.545,6.094,7.17,6.094c2.431,0,5.102-1.273,6.335-3.545h0.081 c0.042,0.635,0.042,1.986,0.239,3.068h4.701c-0.119-1.598-0.198-3.033-0.24-4.586c-0.039-1.513-0.079-3.067-0.079-5.14v-2.63 c0-6.057-2.59-8.646-8.845-8.646c-2.272,0-5.06,0.6-7.133,1.555L90.836,26.833z M74.779,41.697h5.339v-7.534 c0-2.947,0-8.369,4.342-8.369c0.957,0,1.913,0.158,2.393,0.439v-5.378c-0.558-0.16-1.115-0.16-1.634-0.16 c-3.187,0-5.379,3.23-5.618,5.138h-0.08v-4.658h-4.742V41.697z M55.494,41.697h5.579V29.5h9.404v-4.383h-9.404v-6.852h9.882v-4.382 H55.494V41.697z"/><path d="M224.211,55.868h2.697v5.624h5.396v-5.624H235v13.916h-2.696v-6.101h-5.396v6.101h-2.697V55.868z"/><path d="M238.602,55.868h2.698v5.624h5.396v-5.624h2.695v13.916h-2.695v-6.101H241.3v6.101h-2.698V55.868z"/><path d="M253.242,55.868h2.697v13.916h-2.697V55.868z"/></svg></a>
+          <a class="logo logo--tub" href="https://www.tu.berlin/en/" title="Technische Universität Berlin"><svg viewBox="0 0 235.92 80.7" fill="currentColor" role="img" aria-label="Technische Universität Berlin"><path d="M75.81 80.7c6.28 0 10.79-1.86 14.29-4.21 3.27-2.19 5.8-4.78 7.74-8.12 2.51-4.32 2.78-8.33 2.99-10.66 0-.02 4.67-48.4 4.67-48.4H82.7c-.01 0-6.9 71.39-6.89 71.39z"/><path d="m53.86 22.73-3.45 35.8c-.58 7.83 2.36 11.85 4.18 13.97 3.34 3.87 9.47 6.91 16.56 8.18l6.6-68.51c.21-3.25-.73-6.09-2.9-8.57C72.32.71 68.57.05 67.02.05L10.46.06C6.28.06 0 4.11 0 11.11c0 8.65 7.69 11.62 10.34 11.62 1.35.01 43.52 0 43.52 0z"/><path d="m44.53 71.41 4.24-44.02-22.84-.05s-3.72 38.32-4.26 44.02l22.86.05z"/><path d="M119.73 11.16v11.67h-2.18V11.16h-3.7V9.31h9.61v1.84h-3.73z"/><path d="M126.36 22.83V9.31h7.13v1.82h-4.95v3.84h4.7v1.78h-4.7v4.2h4.95v1.86h-7.13z"/><path d="M143.02 22.99c-4.52 0-6.19-2.92-6.19-6.53 0-4.2 2.12-7.27 6.67-7.27 1 0 2.04.16 2.98.38l-.24 2c-.98-.3-1.94-.46-2.92-.46-2.82 0-4.1 2.16-4.1 4.98 0 3.14 1.34 4.92 4.28 4.92.92 0 2.1-.26 2.84-.62l.26 1.94c-1.02.42-2.28.66-3.58.66z"/><path d="M158.99 22.83v-6.07h-6.39v6.07h-2.18V9.31h2.18v5.59h6.39V9.31h2.16v13.51h-2.16z"/><path d="m174.01 22.83-4.62-7.69c-.6-.98-1.08-1.94-1.5-2.84.08 1.32.12 4.06.12 5.99v4.54h-2.12V9.31h2.86l4.46 7.37c.6 1 1.14 2.08 1.64 3.06-.08-1.54-.14-4.44-.14-6.43v-4h2.12v13.51h-2.82z"/><path d="M181.56 22.83V9.31h2.18v13.51h-2.18z"/><path d="M190.47 23.03c-.98 0-1.94-.12-2.72-.32l.12-2.06c.76.28 1.82.5 2.8.5 1.48 0 2.68-.62 2.68-2.08 0-2.84-5.91-1.64-5.91-6.01 0-2.32 1.82-3.94 4.96-3.94.8 0 1.62.1 2.44.24l-.12 1.94c-.78-.24-1.64-.38-2.44-.38-1.68 0-2.54.78-2.54 1.9 0 2.7 5.9 1.7 5.9 5.93.01 2.48-1.95 4.28-5.17 4.28z"/><path d="M204.85 22.99c-4.52 0-6.19-2.92-6.19-6.53 0-4.2 2.12-7.27 6.67-7.27 1 0 2.04.16 2.98.38l-.24 2c-.98-.3-1.94-.46-2.92-.46-2.82 0-4.1 2.16-4.1 4.98 0 3.14 1.34 4.92 4.28 4.92.92 0 2.1-.26 2.84-.62l.26 1.94c-1.02.42-2.28.66-3.58.66z"/><path d="M220.82 22.83v-6.07h-6.39v6.07h-2.18V9.31h2.18v5.59h6.39V9.31h2.16v13.51h-2.16z"/><path d="M227.71 22.83V9.31h7.13v1.82h-4.95v3.84h4.7v1.78h-4.7v4.2h4.95v1.86h-7.13z"/><path d="M120.21 47.29c-4.24 0-5.15-2.32-5.15-4.8v-8.91h2.18v8.75c0 1.8.6 3.16 3.1 3.16 2.2 0 3.2-.92 3.2-3.44v-8.47h2.14v8.31c.01 3.6-1.93 5.4-5.47 5.4z"/><path d="m138.25 47.09-4.62-7.69c-.6-.98-1.08-1.94-1.5-2.84.08 1.32.12 4.06.12 5.99v4.54h-2.12V33.58h2.86l4.46 7.37c.6 1 1.14 2.08 1.64 3.06-.08-1.54-.14-4.44-.14-6.43v-4h2.12v13.51h-2.82z"/><path d="M145.6 47.09V33.58h2.18v13.51h-2.18z"/><path d="M157.79 47.09h-2.48l-4.8-13.51h2.4l2.84 8.33c.28.78.6 1.74.86 2.74h.02c.24-.94.48-1.78.88-2.88l2.9-8.19h2.24l-4.86 13.51z"/><path d="M165.38 47.09V33.58h7.13v1.82h-4.95v3.84h4.7v1.78h-4.7v4.2h4.95v1.86h-7.13z"/><path d="m182.84 47.09-4.2-5.85h-.1v5.85h-2.18V33.58c.98-.06 2.1-.08 3.62-.08 2.8 0 4.72.98 4.72 3.66 0 2.16-1.62 3.54-3.82 3.78.38.48.8 1 1.14 1.44l3.56 4.7h-2.74zm-3.16-11.81c-.42 0-.82.02-1.14.04v4.28c.2.02.58.04 1.06.04 1.76 0 2.82-.9 2.82-2.24 0-1.48-.92-2.12-2.74-2.12z"/><path d="M190.87 47.29c-.98 0-1.94-.12-2.72-.32l.12-2.06c.76.28 1.82.5 2.8.5 1.48 0 2.68-.62 2.68-2.08 0-2.84-5.91-1.64-5.91-6.01 0-2.32 1.82-3.94 4.96-3.94.8 0 1.62.1 2.44.24l-.12 1.94c-.78-.24-1.64-.38-2.44-.38-1.68 0-2.54.78-2.54 1.9 0 2.7 5.9 1.7 5.9 5.93.02 2.48-1.95 4.28-5.17 4.28z"/><path d="M199.56 47.09V33.58h2.18v13.51h-2.18z"/><path d="M210.47 35.42v11.67h-2.18V35.42h-3.7v-1.84h9.61v1.84h-3.73z"/><path d="m223.91 47.09-1.04-2.98h-5.47l-1.04 2.98h-2.2L219 33.58h2.42l4.9 13.51h-2.41zm-5.69-14.67c-.68 0-1.2-.54-1.2-1.22 0-.66.52-1.2 1.2-1.2s1.22.54 1.22 1.2c0 .67-.54 1.22-1.22 1.22zm2.52 5.7c-.26-.7-.44-1.34-.6-2.08h-.04a15.9 15.9 0 0 1-.62 2.14l-1.52 4.18h4.32l-1.54-4.24zm1.43-5.7c-.68 0-1.22-.54-1.22-1.22 0-.66.54-1.2 1.22-1.2.66 0 1.2.54 1.2 1.2 0 .67-.54 1.22-1.2 1.22z"/><path d="M232.2 35.42v11.67h-2.18V35.42h-3.7v-1.84h9.61v1.84h-3.73z"/><path d="M118.75 71.41c-.82 0-2.18-.04-3.68-.06V57.84c1.06-.02 2.6-.06 4.24-.06 2.94 0 4.46 1.2 4.46 3.28 0 1.38-.92 2.6-2.3 3.08v.04c1.76.34 2.58 1.68 2.58 3.08 0 1.77-1.16 4.15-5.3 4.15zm.2-11.89c-.6 0-1.18.02-1.7.04v4c.36.02.7.02 1.16.02 2.02 0 3.08-.82 3.08-2.18 0-1.1-.62-1.88-2.54-1.88zm-.48 5.69c-.22 0-.92 0-1.22.02v4.3c.34.06.88.1 1.58.1 1.98 0 2.92-.96 2.92-2.32 0-1.54-1.38-2.1-3.28-2.1z"/><path d="M127.72 71.35V57.84h7.13v1.82h-4.95v3.84h4.7v1.78h-4.7v4.2h4.95v1.86h-7.13z"/><path d="m145.18 71.35-4.2-5.85h-.1v5.85h-2.18V57.84c.98-.06 2.1-.08 3.62-.08 2.8 0 4.72.98 4.72 3.66 0 2.16-1.62 3.54-3.82 3.78.38.48.8 1 1.14 1.44l3.56 4.7h-2.74zm-3.17-11.81c-.42 0-.82.02-1.14.04v4.28c.2.02.58.04 1.06.04 1.76 0 2.82-.9 2.82-2.24.01-1.48-.91-2.12-2.74-2.12z"/><path d="M151.06 71.35V57.84h2.18v11.61h4.65v1.9h-6.83z"/><path d="M160.62 71.35V57.84h2.18v13.51h-2.18z"/><path d="m175.45 71.35-4.62-7.69c-.6-.98-1.08-1.94-1.5-2.84.08 1.32.12 4.06.12 5.98v4.54h-2.12v-13.5h2.86l4.46 7.37c.6 1 1.14 2.08 1.64 3.06-.08-1.54-.14-4.44-.14-6.43v-4h2.12v13.51h-2.82z"/></svg></a>
+        </div>
         <div class="buttons">
           <a class="btn btn--solid" href="https://arxiv.org/abs/2508.21380">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h9l5 5v15H6zM14 3v5h5" /></svg>Paper</a>
-          <a class="btn" href="#" data-todo="code">
+          <a class="btn" href="https://openreview.net/forum?id=ULhusDnCQy">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4zM8 9h8M8 12h5" /></svg>OpenReview</a>
+          <a class="btn" href="https://github.com/hartigel/leela-logit-lens">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5" /></svg>Code</a>
-          <a class="btn" href="#" data-todo="poster">
+          <a class="btn" href="https://doi.org/10.6084/m9.figshare.29959928" title="Models, datasets and precomputed results (Figshare, CC BY 4.0)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" /></svg>Data</a>
+          <a class="btn" href="https://neurips.cc/virtual/2026/loc/paris/poster/152268">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h18v13H3zM8 21h8M12 17v4" /></svg>Poster</a>
-          <a class="btn" href="#" data-todo="talk">
+          <a class="btn" href="https://neurips.cc/virtual/2026/loc/paris/oral/152269">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>Talk</a>
           <a class="btn" href="#bots">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21h6M12 3a3 3 0 0 0-2 5.2L8 16h8l-2-7.8A3 3 0 0 0 12 3z" /></svg>Play the layers</a>
@@ -88,12 +98,17 @@
       <div class="tldr">
         <h2 class="tldr__k">In short</h2>
         <p>
-          Mechanistic interpretability has found learned algorithms inside neural networks, including look-ahead in
-          <a href="https://leela-interp.github.io/">Leela Chess Zero</a>. We ask whether finding such an algorithm tells us what the network will do.
-          Reading out Leela's policy layer by layer, we find puzzles whose solution, often a checkmate, is found in the
-          middle layers and then <em>overridden</em> at the output. On these <em>forgotten puzzles</em>, look-ahead is still present
-          and causally involved. What changes is in the last layers, which shift toward safe, quiet play. Steering against that shift
-          recovers most of the forgotten solutions, and Leela's own training target, computed by search, would have chosen them.
+          Mechanistic interpretability has uncovered learned algorithms inside neural networks, from modular arithmetic to
+          search and planning. One example is <a href="https://leela-interp.github.io/">look-ahead</a> in
+          <a href="https://lczero.org">Leela Chess Zero</a>, one of the strongest chess engines: its policy network picks a
+          move in a single forward pass, and while doing so it already represents the moves that would follow it. Such work
+          shows how these algorithms function when they succeed; less is known about how they fail. Reading out Leela's policy
+          layer by layer on chess puzzles, positions with a single clearly winning line, we find many whose solution is found
+          in the middle layers and then <em>overridden</em> at the output. This is not a failure of the algorithm: on these
+          <em>forgotten puzzles</em>, look-ahead is still present and causally involved. Nor is the training objective at
+          fault: Leela's training target would have favored the solution almost every time. Instead, the cause is learned
+          priors for safe play: the last layers shift toward quiet moves and override the solution that look-ahead computed.
+          When we steer the network against these priors, it solves most of the forgotten puzzles again.
         </p>
         <p class="tldr__punch">A model can internally solve a problem and still output the wrong answer.</p>
       </div>
@@ -102,18 +117,22 @@
     <section class="wrap prose" id="setup">
       <h2>Reading every layer of Leela</h2>
       <p>
-        Leela's policy network is an encoder-only transformer that treats each of the 64 squares as a token and picks a move in a single
-        forward pass, with no search. We extend the <em>logit lens</em> to its Post-LN architecture: to read the policy after layer
-        <i>ℓ</i>, we zero-ablate every later sublayer and keep the final normalisation, so the unchanged policy head decodes the intermediate
-        residual stream. Every layer yields a playable chess policy, and its strength rises with depth, from about 350 Elo at the
-        input embedding to 2,268 for the full network (<a href="#more">tournament</a>).
+        Leela's policy network is a transformer that treats each of the 64 squares as a token and picks a move in a single
+        forward pass, with no search. We extend the <em>logit lens</em> to its encoder-only Post-LN architecture. It decodes intermediate
+        activations directly through the network's own output head, showing which move the network would choose if it stopped
+        computing after a given layer. Every layer yields a highly interpretable policy that plays coherent chess, and playing
+        strength rises monotonically with depth: in a <a href="#strength">round-robin tournament</a> between the layers, from
+        about 350 Elo at the input embedding to 2,268 for the full network.
       </p>
     </section>
     <section class="wrap wrap--figure" id="fig2-section">
       <figure class="figure figure--hero figure--fig2">
         <div id="network-figure"></div>
-        <figcaption>Every layer's read-out plays recognisable chess, and the kind of chess changes with depth.
-          Hover a layer of the network to see its top moves.</figcaption>
+        <figcaption>Every layer's read-out plays recognizable chess, and the kind of chess changes with depth. Each panel shows the top
+          three moves of the policy read out after that layer: queen moves in the input encoding, reflecting piece priors before any
+          interaction between squares; greedy captures in the early layers; forcing checks by layer 9; and a rook lift at layer 12. The
+          output converges on the correct knight sacrifice …♘g3+. The intermediate preferences are all losing, but each stage reflects a
+          recognizable chess heuristic. Every layer of this puzzle is in the chart at the top (62FeU, under “Solved puzzles from the paper”).</figcaption>
       </figure>
     </section>
 
@@ -123,56 +142,67 @@
       <div class="split">
         <div>
           <p>
-            On 10,000 Lichess puzzles, the full policy solves 88.6%. Among the rest are 449 puzzles (4.5%) that some
-            intermediate layer solves completely and the final output does not. We call them <em>forgotten puzzles</em>.
-            Over the layers, the share of puzzles solved by <em>some</em> layer runs well ahead of the share solved <em>at</em> each layer.
+            We read out every layer on 10,000 Lichess puzzles. The full network solves 88.6% of them correctly. Among the rest are 449 puzzles (4.5%) that some
+            intermediate layer solves completely and the final output does not. We call them
+            <b class="cw-red">forgotten puzzles</b>.
           </p>
           <p>
-            For mechanistic analyses we build a dataset of <span class="num">8,648</span> forgotten puzzles with a single clearly winning line,
-            filtered like Jenner et al.'s look-ahead dataset. The pattern is consistent:
+            To test whether look-ahead is still present in these puzzles, we build a larger set of forgotten puzzles, selected with
+            the same filters as <a href="https://openreview.net/forum?id=8zg9sO4ttV">Jenner et al. (2024)</a>, who found look-ahead in Leela. Characterizing them reveals
+            a clear pattern: the network typically trades a forcing sacrifice for a quiet move.
           </p>
-          <ul class="facts">
-            <li><span class="facts__v">87%</span><span>involve a sacrifice. The solution is a check in 77% of puzzles and a capture in 78%.</span></li>
-            <li><span class="facts__v">68%</span><span>of the time the network plays a quiet move instead.</span></li>
-            <li><span class="facts__v">46%</span><span>are mate puzzles, including mates in two.</span></li>
-            <li><span class="facts__v">97%</span><span>of the time the value head prefers the position after the correct move.</span></li>
-          </ul>
         </div>
         <figure class="figure figure--paper figure--narrow">
-          <img src="assets/figures/puzzle_solve_rates.png" alt="Puzzle solve rate by layer: solved at layer L, solved by any layer up to L, and first solved at layer L. The hatched gap between the first two curves marks solutions found and later lost." loading="lazy" width="1437" height="1087" />
-          <figcaption>Solve rate at each layer (blue) vs by any earlier layer (green). The hatched region holds solutions that were found and then lost.</figcaption>
+          <picture><source media="(prefers-color-scheme: dark)" srcset="assets/figures/puzzle_solve_rates_dark.png" /><img src="assets/figures/puzzle_solve_rates.png" alt="Puzzle solve rate by layer: solved at layer L, solved by any layer up to L, and first solved at layer L. The hatched gap between the first two curves marks solutions found and later lost." loading="lazy" width="1437" height="1087" /></picture>
+          <figcaption>Solve rate <b class="cw-blue">at each layer</b> vs <b class="cw-green">by any layer up to it</b>, and the share solved <b class="cw-orange">for the first time</b>. The <b class="cw-red">hatched region</b> holds solutions that were found and then lost.</figcaption>
         </figure>
       </div>
+      <ul class="facts facts--grid">
+        <li><span class="facts__v">87%</span><span>involve a sacrifice. The solution is a check in 77% of puzzles and a capture in 78%.</span></li>
+        <li><span class="facts__v">68%</span><span>of the time the network plays a quiet move instead.</span></li>
+        <li><span class="facts__v">46%</span><span>end in checkmate, about half of them mates in&nbsp;two, where even a single step of look-ahead would suffice.</span></li>
+        <li><span class="facts__v">97%</span><span>of the time the network's own value head rates the position after the correct move higher than after the move it plays.</span></li>
+      </ul>
     </section>
 
     <section class="wrap prose finding" id="lookahead">
       <p class="finding__n">Finding 2</p>
-      <h2>Look-ahead still runs on forgotten puzzles</h2>
+      <h2>Look-ahead is still present on forgotten puzzles</h2>
       <p>
-        <b>What look-ahead means here.</b> Leela picks its move in a single forward pass, with no search.
-        <a href="https://openreview.net/forum?id=8zg9sO4ttV">Jenner et al. (2024)</a> showed that it still looks ahead internally:
-        in the Figure&nbsp;1 puzzle, while choosing <span class="mono">…Qxf1+</span>, the network already represents the follow-up
-        <span class="mono">…Rd1#</span> on its target square, d1, and an attention head in layer 12 (L12H12) moves that information
-        to the first move's square, f1. The first move is judged partly by the move it sets up.
+        <b>What look-ahead means here.</b> <a href="https://openreview.net/forum?id=8zg9sO4ttV">Jenner et al.</a> showed that
+        Leela looks ahead internally on the puzzles it solves: it represents its follow-up after the opponent's reply, the third move
+        of the line, and this shapes its choice of the first move. Three results show this. The activations on the
+        <b class="cw-blue">third move's target square</b> strongly affect the output, an attention head in layer 12 (L12H12) moves
+        information from there to the <b class="cw-green">first move's target square</b>, and a probe on the activations of these
+        squares can read out the third move.
       </p>
       <p>
-        Is the algorithm failing? We repeat <a href="https://leela-interp.github.io/">Jenner et al.'s</a> look-ahead analyses on the forgotten set.
-        The future moves of the correct line are <b>represented, causally important and linearly decodable</b>, as on puzzles the network solves.
-        In the Figure&nbsp;1 puzzle, cutting the single L12H12 attention entry that carries d1's information to f1 lowers
-        <span class="mono">…Qxf1+</span> from 5.8% to 1.0%. Look-ahead is present and contributes; what the final layers do with it
-        is the difference. The override itself comes at the very end: <span class="num">63%</span> of forgotten puzzles are still
-        solved after the last attention sublayer, so it happens in the final feed-forward layer.
+        Is the look-ahead algorithm failing on forgotten puzzles? We repeat their analyses on our set of forgotten puzzles. As on
+        puzzles the network solves, future moves of the correct line are <b>represented, causally important and linearly decodable</b>.
+        So the look-ahead algorithm is not what fails. Instead, the solution is overridden at the very end: 63%
+        of forgotten puzzles are still solved after the last attention sublayer, which places the override mainly in the final
+        feed-forward layer.
       </p>
       <figure class="figure figure--paper figure--wide">
-        <img src="assets/figures/forgotten_act_patching.png" alt="Activation patching on forgotten puzzles: the effect of patching the third-move target square stands out in the middle layers compared with other squares." loading="lazy" width="2400" height="640" />
+        <div class="figure__pan"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/figures/forgotten_act_patching_dark.png" /><img src="assets/figures/forgotten_act_patching.png" alt="Activation patching on forgotten puzzles: the effect of patching the third-move target square stands out in the middle layers compared with other squares." loading="lazy" width="2400" height="640" /></picture></div>
+        <span class="figure__hint">Swipe the figure sideways to see all of it.</span>
         <div class="figure__row">
-          <img src="assets/figures/forgotten_head_ablation.png" alt="Ablating the single attention entry of head L12H12 that carries information from the third-move target to the first-move target reduces the solution's log-odds far more than any other entry." loading="lazy" width="2070" height="1082" />
-          <img src="assets/figures/forgotten_probing.png" alt="A bilinear probe predicts the third move of the solution from intermediate activations with high accuracy in the middle layers, far above a randomly initialised model." loading="lazy" width="1438" height="1087" />
+          <picture><source media="(prefers-color-scheme: dark)" srcset="assets/figures/forgotten_head_ablation_dark.png" /><img src="assets/figures/forgotten_head_ablation.png" alt="Ablating the single attention entry of head L12H12 that carries information from the third-move target to the first-move target reduces the solution's log-odds far more than any other entry." loading="lazy" width="2070" height="1082" style="--ar: 2070 / 1082" /></picture>
+          <picture><source media="(prefers-color-scheme: dark)" srcset="assets/figures/forgotten_probing_dark.png" /><img src="assets/figures/forgotten_probing.png" alt="A bilinear probe predicts the third move of the solution from intermediate activations with high accuracy in the middle layers, far above a randomly initialized model." loading="lazy" width="1438" height="1087" style="--ar: 1438 / 1087" /></picture>
         </div>
         <figcaption>
-          <b>Top:</b> patching the 3rd-move target square matters most in middle layers.
-          <b>Bottom left:</b> one attention entry of head L12H12 (3rd → 1st move target) beats all 4,095 others in <span class="num">62%</span> of forgotten puzzles.
-          <b>Bottom right:</b> a bilinear probe predicts the 3rd move with up to <span class="num">79%</span> accuracy (solved puzzles: <span class="num">90%</span>).
+          <b>Top:</b> activation patching from a slightly corrupted board, one square at a time. In the middle layers, apart from the
+          corrupted square itself, the largest effect is on the <b class="cw-blue">3rd-move target square</b>, where the network's own
+          follow-up move would land after the opponent's reply. That this square has an outsized effect at all indicates that the network
+          represents the follow-up move. After layer 11 the effect drops there and rises on the <b class="cw-green">1st-move target square</b>,
+          as the look-ahead information is passed on to where the first move is chosen. <b class="cw-gray">Other squares</b> have much
+          smaller effects, and the effect of the <b class="cw-red">corrupted square</b> itself fades with depth.
+          <b>Bottom left:</b> zero-ablating the single L12H12 attention entry <b class="cw-green">from the 3rd- to the 1st-move target
+          square</b> has a larger effect than ablating <b class="cw-gray">all 4,095 other entries</b> together in 62%
+          of forgotten puzzles.
+          <b>Bottom right:</b> a bilinear probe on the <b class="cw-green">trained</b> network predicts the 3rd move with up to
+          79% accuracy (solved puzzles: 90%), far above the same probe on a
+          <b class="cw-blue">randomly initialized</b> one.
         </figcaption>
       </figure>
     </section>
@@ -181,28 +211,72 @@
       <p class="finding__n">Finding 3</p>
       <h2>Late layers prefer safe play, and steering against it recovers solutions</h2>
       <p>
-        Since the network swaps forcing sacrifices for quiet moves, we measure which chess concepts each layer's policy prefers, using
-        Stockfish's hand-crafted evaluation terms as interpretable proxies. Late layers move toward <em>own king safety</em> and
-        <em>fewer threats from the opponent</em>, which we call <em>safety priors</em>. Gradient-based steering against these concepts
-        works best after layer 13, steering the network to worry less about the opponent's threats. It raises the solve rate on held-out
-        puzzles from <span class="num">88.6%</span> to <span class="num">92.4%</span>, recovers <span class="num">62%</span> of the forgotten
-        puzzles and solves <span class="num">34%</span> of the puzzles that no layer had solved. On the separate forgotten dataset it
-        recovers <span class="num">72%</span>.
+        What overrides the solution? On forgotten puzzles the network trades forcing sacrifices for quiet moves, which suggests that its
+        final layers have learned to favor safe play. To test this, we measure which chess concepts each layer's policy favors, such as
+        the safety of each king and the threats each side poses. Each concept is one of Stockfish's hand-crafted evaluation terms, and a
+        layer favors a concept if the moves it prefers increase that term. Early and middle layers favor aggressive concepts,
+        <b class="cw-orange">opponent king vulnerability</b> and <b class="cw-pink">own threats</b>. Late layers shift away from them,
+        toward <b class="cw-blue">own king safety</b> and <b class="cw-green">fewer threats from the opponent</b>. We call these learned
+        preferences for safe-looking play <em>safety priors</em>.
       </p>
-      <figure class="figure figure--paper">
+      <p>
+        To test whether these priors drive the override, we steer the activations at a single layer against them and measure the solve
+        rate on held-out puzzles. For all four concepts shown, steering away from safe play helps, and for three of them it helps at every
+        layer, far above <b class="cw-gray">random directions</b>. The strongest single setting comes right before the override: after
+        layer 13, steering the network to worry less about <b class="cw-green">the opponent's threats</b> raises the solve rate from
+        88.6% to 92.4%. It recovers 62% of the forgotten puzzles
+        and also solves 34% of the puzzles that no layer had solved. Applied unchanged to our larger set of
+        forgotten puzzles, which played no part in choosing it, the same setting recovers 72%.
+      </p>
+      <figure class="figure figure--paper figure--wide">
         <div class="figure__row figure__row--fig6">
-          <img src="assets/figures/concept_preferences_panel.png" alt="Concept preference by layer for four safety concepts: own king safety and opponent threats shift in the safe direction in the last layers." loading="lazy" width="1300" height="1076" />
-          <img src="assets/figures/steering_effects_panel.png" alt="Held-out solve rate after steering at each layer for the four safety concepts, compared with the unsteered model and random directions; the largest gain is late in the network." loading="lazy" width="1245" height="1076" />
-          <img class="figure__legend" src="assets/figures/concept_legend.png" alt="Legend: king safety (opponent), threats (mine), king safety (mine), threats (opponent)." loading="lazy" width="648" height="474" />
+          <picture><source media="(prefers-color-scheme: dark)" srcset="assets/figures/concept_preferences_panel_dark.png" /><img src="assets/figures/concept_preferences_panel.png" alt="Concept preference by layer for four safety concepts: own king safety and opponent threats shift in the safe direction in the last layers." loading="lazy" width="1300" height="1076" style="--ar: 1300 / 1076" /></picture>
+          <picture><source media="(prefers-color-scheme: dark)" srcset="assets/figures/concept_legend_dark.png" /><img class="figure__legend" src="assets/figures/concept_legend.png" alt="Legend: king safety (opponent), threats (mine), king safety (mine), threats (opponent)." loading="lazy" width="648" height="474" /></picture>
+          <picture><source media="(prefers-color-scheme: dark)" srcset="assets/figures/steering_effects_panel_dark.png" /><img src="assets/figures/steering_effects_panel.png" alt="Held-out solve rate after steering at each layer for the four safety concepts, compared with the unsteered model and random directions; the largest gain is late in the network." loading="lazy" width="1245" height="1076" style="--ar: 1245 / 1076" /></picture>
         </div>
-        <figcaption><b>Left:</b> concept preference of each layer's policy. <b>Right:</b> held-out solve rate when steering at each layer (band: one standard deviation over 200 random 50/50 splits).</figcaption>
+        <figcaption><b>Left:</b> concept preference of each layer's policy: the change in each concept, averaged over the layer's move
+          probabilities, in centipawns and from the view of the side to move (positive is good for it). <b>Right:</b> solve rate when
+          steering against each concept at each layer, with the strength chosen on a random half of the puzzles and evaluated on the other
+          half (band: one standard deviation over 200 splits), compared with the <b class="cw-red">unsteered model</b> and
+          <b class="cw-gray">random directions</b>.</figcaption>
       </figure>
+      <details class="qa defs" id="priors-defs">
+        <summary>How concept preference and steering are defined</summary>
+        <p>
+          A concept <i>c</i> maps a position to a number, such as the opponent's king safety in Stockfish's hand-crafted evaluation
+          (in centipawns), seen from the player to move, so positive values are good for that player. A move <i>m</i> from position
+          <i>s</i> to <i>s′</i> changes it by <span class="nowrap">Δ<i>c</i><sub><i>m</i></sub> = <i>c</i>(<i>s′</i>) − <i>c</i>(<i>s</i>)</span>.
+          The concept preference of layer <i>ℓ</i> is the expected change when moves are drawn from that layer's read-out policy
+          π<sub><i>ℓ</i></sub>:
+        </p>
+        <p class="math">Δ<i>c</i><sub><i>ℓ</i></sub> = <span class="math__op">Σ</span><sub><i>m</i> ∈ legal(<i>s</i>)</sub> π<sub><i>ℓ</i></sub>(<i>m</i>) · Δ<i>c</i><sub><i>m</i></sub> = 𝔼<sub>π<sub><i>ℓ</i></sub></sub>[Δ<i>c</i><sub><i>m</i></sub>]</p>
+        <p>
+          In words: if the layer chose its move by sampling from its policy, this is how much the concept would change on average.
+          A layer favors a concept when this is positive.
+        </p>
+        <p>
+          To steer, we add a direction to the residual stream <b>h</b><sub><i>ℓ</i></sub> after layer <i>ℓ</i>. The direction is the
+          gradient of the full network's concept preference Δ<i>c</i><sub><i>L</i></sub> with respect to <b>h</b><sub><i>ℓ</i></sub>,
+          averaged over positions from ordinary games (no puzzles). It is scaled to the layer's mean activation norm and multiplied by a
+          strength α:
+        </p>
+        <p class="math"><b>h</b>′<sub><i>ℓ</i></sub> = <b>h</b><sub><i>ℓ</i></sub> ± α · 𝔼[∇<sub><b>h</b><sub><i>ℓ</i></sub></sub> Δ<i>c</i><sub><i>L</i></sub>] · 𝔼[‖<b>h</b><sub><i>ℓ</i></sub>‖] / ‖𝔼[∇<sub><b>h</b><sub><i>ℓ</i></sub></sub> Δ<i>c</i><sub><i>L</i></sub>]‖</p>
+        <p>
+          The gradient points where the concept preference rises fastest, so, to first order, adding it pushes the network's concept
+          preference up and subtracting it pushes it down.
+        </p>
+        <p>
+          In the figure above, α is chosen per concept and layer on one half of the puzzles and evaluated on the other, from the grid
+          α ∈ {±0.25, ±0.5, …, ±1.5}. The steering at the top of the page and the explorer below use fixed strengths from this grid,
+          α ∈ {±0.25, ±0.5, ±0.75, ±1}.
+        </p>
+      </details>
 
       <h3 class="explorer-title">Try it: steer a forgotten puzzle</h3>
       <p>
-        These are the exact interventions from the paper's sweep. Some directions make the output less peaked, others do not.
-        For every setting we show the entropy of the distribution, 50 random directions of the same norm, and how the same setting does
-        across all forgotten puzzles, so you can check whether a recovery comes from the concept or from noise.
+        Pick a puzzle, a concept and a strength. Every setting comes from the paper's sweep and is applied after layer 13. To tell
+        whether the concept matters or any push of that size would do, we show how 50 random directions of the same norm do on this
+        puzzle. To tell whether the puzzle is typical, we show how the setting does across all 449 forgotten puzzles.
       </p>
       <div id="steer-explorer"></div>
       <p class="note">
@@ -210,87 +284,143 @@
       </p>
     </section>
 
-    <section class="wrap prose" id="scope">
-      <h2>What about search?</h2>
-      <p>
-        Our claims concern Leela's <b>policy network</b> on its own. But the policy is not trained to solve puzzles: in self-play, each
-        move is chosen by a tree search guided by the network, and the policy learns to match where that search spent its visits.
-        Could this training target itself prefer the quiet move? We run the self-play search, with the settings of the run that trained
-        this network, on every forgotten puzzle. The target puts on average <span class="num">93%</span> of its visits on the solution,
-        and the solution is its most visited move in <span class="num">99.4%</span> of puzzles. The penultimate layer is closer to that
-        target than the final layer in <span class="num">78%</span> of forgotten puzzles. Had these positions come up in training, the
-        objective would have asked for the solution; the override comes from a prior that is sensible on typical positions.
-      </p>
-      <figure class="figure figure--paper">
-        <div class="figure__row figure__row--even">
-          <img src="assets/figures/search_training_target.png" alt="On forgotten puzzles, the training target puts around 90 to 100% on the correct move, while the penultimate and final layers mostly give it less than 40%, the final layer least." loading="lazy" width="2068" height="1184" />
-          <img src="assets/figures/search_deployment.png" alt="Engine solve rate by search budget: on forgotten puzzles the final-layer policy starts at 0% with one node and needs more nodes than a penultimate-layer policy to catch up; on solved puzzles it is ahead at small budgets." loading="lazy" width="2068" height="1280" />
-        </div>
-        <figcaption>
-          <b>Left:</b> probability on the correct move of forgotten puzzles under the training target, the penultimate layer and the final layer.
-          <b>Right:</b> how often the engine plays the solution at each search budget, with the policy read from the final layer (blue) or the
-          penultimate layer (orange). Red: what the final layer costs on forgotten puzzles; green: what it gains on solved ones.
-        </figcaption>
+    <section class="wrap prose finding" id="search">
+      <p class="finding__n">Finding 4</p>
+      <h2>The training objective would have asked for the solution</h2>
+      <figure class="figure figure--paper figure--float figure--float-right">
+        <picture><source media="(prefers-color-scheme: dark)" srcset="assets/figures/search_training_target_dark.png" /><img src="assets/figures/search_training_target.png" alt="On forgotten puzzles, the training target puts around 90 to 100% on the correct move, while the penultimate and final layers mostly give it less than 40%, the final layer least." loading="lazy" width="2068" height="1184" style="--ar: 2068 / 1184" /></picture>
+        <figcaption>Probability on the correct move of forgotten puzzles under the <b class="cw-pink">training target</b>, the
+          <b class="cw-orange">penultimate layer</b> and the <b class="cw-blue">final layer</b>.</figcaption>
       </figure>
       <p>
-        In deployment, Leela runs this search, and with enough of it the engine finds the forgotten solutions: <span class="num">97.8%</span>
-        at 800 nodes. The final layer makes this more expensive. With 8 nodes the engine finds <span class="num">54%</span> of them; with
-        a policy read from the penultimate layer, <span class="num">75%</span>. On puzzles the network already solves, the final layer helps instead.
+        Could the training objective itself favor the quiet move? Leela's policy is not trained to solve puzzles. In self-play, each move
+        is chosen by a tree search guided by the network, and the policy is trained to distill that search into a single forward pass:
+        its target is how the search split its effort among the legal moves of the current position. We run this search on every forgotten puzzle, with the settings of the
+        run that trained this network. The resulting <b class="cw-pink">training target</b> puts on average 93% of its weight on the
+        solution, and the solution is its top move in 99.4% of puzzles. Under the policy's own training loss, the <b class="cw-orange">penultimate layer</b> is closer to that target
+        than the <b class="cw-blue">final layer</b> in 78% of forgotten puzzles. These positions most likely never came up in training, but
+        had they, the objective would have asked for the solution. So the override does not come from the objective. It is consistent with
+        a prior that is sensible on the positions Leela trains on and carries over to positions where it conflicts with the solution.
       </p>
+      <figure class="figure figure--paper figure--float figure--float-left">
+        <picture><source media="(prefers-color-scheme: dark)" srcset="assets/figures/search_deployment_dark.png" /><img src="assets/figures/search_deployment.png" alt="Engine solve rate by search budget: on forgotten puzzles the final-layer policy starts at 0% with one node and needs more nodes than a penultimate-layer policy to catch up; on solved puzzles it is ahead at small budgets." loading="lazy" width="2068" height="1280" style="--ar: 2068 / 1280" /></picture>
+        <figcaption>How often the engine plays the solution at each search budget, with the policy read from the
+          <b class="cw-blue">final layer</b> or the <b class="cw-orange">penultimate layer</b>. Shading shows the net effect of the final
+          layer: <b class="cw-red">worse</b> on forgotten and <b class="cw-green">better</b> on solved puzzles.</figcaption>
+      </figure>
+      <p>
+        So far we have studied the <b>policy network</b> on its own. Does the override still matter when Leela uses search, as it does in
+        deployment? With enough search, the engine finds almost all of the forgotten solutions: 97.8% at 800 nodes. But the <b class="cw-blue">final layer</b> makes this
+        <b class="cw-red">more expensive</b>: with 8 nodes, the engine finds 54% of them with the final layer's policy and 75% with a policy
+        read from the <b class="cw-orange">penultimate layer</b>. On puzzles the network already solves, the final layer
+        <b class="cw-green">helps</b> instead.
+      </p>
+      <div class="clear"></div>
     </section>
 
     <section class="wrap prose" id="implications">
       <h2>Why this matters beyond chess</h2>
       <p>
-        Finding a learned algorithm inside a network does not tell us that the network's behavior follows it.
-        In Leela, a working look-ahead computation and a learned preference for safe play come from the same likelihood-based
-        training, and in tactical positions the preference wins. The right answer is computed internally; it just doesn't reach the output.
-        The preference itself is a sensible generalisation, since quiet moves are usually right. It fails exactly where the position calls for a sacrifice.
+        In Leela, a working look-ahead computation and a learned preference for safe play come from the same training, and in some
+        tactical positions the preference wins: the right answer is computed internally but does not reach the output. The preference
+        itself is a sensible generalization, since risky moves usually do not pay off. It fails in the rare positions that call for a
+        sacrifice.
       </p>
       <p>
-        For interpretability, this means that a model's capabilities can exceed what its outputs show, and that layer-wise readouts
-        can find the gap. It also means mechanistic understanding can suggest targeted fixes, here a single steering direction. Similar
-        conflicts between computed solutions and learned priors are a plausible failure mode for other models, including language models that reason step by step.
+        <b>Interpretability.</b> These findings show that an identified algorithm may not determine the output, and that a wrong output
+        does not mean the capability is missing. Predictions of behavior from circuit analysis alone can therefore be incomplete.
+        Mechanistic analysis can expose such cases and test what causes them.
+      </p>
+      <p>
+        <b>Language models.</b> The ingredients of the override do not require chess or search. Essentially every model trained today
+        minimizes an expected loss and so learns priors that are right on average. Indeed, related overrides have been observed in
+        language models: correct answers decodable at intermediate layers are overridden in late layers by false demonstrations
+        (<a href="https://openreview.net/forum?id=Tigr1kMDZy">Halawi et al., 2024</a>) or by sycophancy
+        (<a href="https://doi.org/10.1609/aaai.v40i39.40645">Wang et al., 2026</a>). They connect to concerns about hidden capabilities:
+        computations present inside a model but not in its behavior (<a href="https://openreview.net/forum?id=f7GG1MbsSM">Gekhman et al., 2025</a>),
+        which may surface under distribution shift or adversarial inputs (<a href="https://openreview.net/forum?id=jA235JGM09">Wei et al., 2023</a>).
+      </p>
+      <p>
+        <b>Reasoning models.</b> Their training resembles Leela's. The language model is the prior that guides a search over chains of
+        thought (<a href="https://arcprize.org/blog/oai-o3-pub-breakthrough">Chollet, 2024</a>), and reinforcement learning with verifiable rewards distills what that search finds back into the model, as Leela's
+        training distills its tree search. In both, a softmax policy keeps every continuation possible, but the prior decides how much
+        search it takes to reach it. A reasoning model trains on a limited number of sampled chains per problem. If it has learned a prior
+        that is right on average but disfavors an unusual step a problem needs, as Leela's prior disfavors sacrifices, the correct chain
+        would rarely be sampled, rewarded and reinforced. Whether such overrides actually occur in domains such as mathematical reasoning
+        is an open question.
       </p>
     </section>
 
     <section class="wrap prose" id="faq">
       <h2>Questions we get</h2>
       <details class="qa">
-        <summary>Is steering just adding noise until the quiet move loses its lead?</summary>
+        <summary>Why chess?</summary>
         <p>
-          No. Flattening a distribution, for example by raising its temperature, never changes which move is on top, so it cannot solve a puzzle.
-          Steering changes the ranking: it raises the solve rate on <em>all</em> puzzles from 88.6% to 92.4% (held-out), which noise would lower.
-          Steering along <em>king safety (opp.)</em> recovers 57% of them
-          with no change in the median entropy of the output. The explorer above shows the full distribution and its entropy for each case.
+          Chess gives a verifiable ground truth. Each puzzle has a single clearly winning line, so we can tell when an intermediate layer is
+          right and the output wrong. And Leela has a known learned algorithm, look-ahead, whose presence we can test directly.
         </p>
       </details>
       <details class="qa">
-        <summary>Doesn't the readout decide what counts as "solved"?</summary>
+        <summary>What counts as solving a puzzle?</summary>
         <p>
-          The logit lens decodes intermediate layers with the network's own policy head, without training a decoder. A learned decoder fitted to match the final output would remove the phenomenon by construction. The intermediate
-          policies also play coherent chess (the layer bots below).
+          A policy solves a puzzle if its top move is correct at each of the player's turns in the solution line, with the opponent's
+          replies taken from the puzzle, or if it delivers checkmate.
+        </p>
+      </details>
+      <details class="qa">
+        <summary>Is this specific to one network?</summary>
+        <p>
+          The look-ahead and steering analyses use one network. Forgotten puzzles themselves appear in all six Lc0 networks we tested,
+          which differ in width, depth and training generation (Figure 9 in the paper).
+        </p>
+      </details>
+      <details class="qa">
+        <summary>Could forgotten puzzles be an artifact of the readout?</summary>
+        <p>
+          The logit lens adds no parameters and learns nothing. It removes the later sublayers and decodes the rest with the network's own
+          policy head, so everything it reads out was computed by the network itself. The read-out policies also play coherent chess, and their
+          strength rises layer by layer (the layer bots below). Learned decoders such as the tuned lens are different: they are trained to match
+          the final output, so their objective penalizes exactly the disagreement that defines forgotten puzzles.
         </p>
       </details>
       <details class="qa">
         <summary>Is "safety prior" a mechanism inside the network?</summary>
         <p>
-          We do not claim a modular safety mechanism. King safety and threat terms are correlated proxies for a common
-          conservative-play axis: avoiding sacrifices, keeping material, preferring quiet moves. The steering result shows that moving
-          along this axis is enough to restore most overridden solutions.
+          No. It names a tendency in the network's behavior, not a module we located. King safety and threats are our proxies for it, and
+          grouping them as safety-related is our choice, not something built into Stockfish's terms. That four separately defined concepts
+          show the same late-layer shift, and that steering along each of them improves the solve rate, suggests a property of the network
+          rather than an artifact of one proxy.
+        </p>
+      </details>
+      <details class="qa">
+        <summary>Would an earlier layer be the better policy?</summary>
+        <p>
+          No. The penultimate layer plays at about 1,670 Elo, the full network at 2,268, and with search the final layer helps on puzzles
+          the network already solves. The override costs only in rare positions that call for a sacrifice.
+        </p>
+      </details>
+      <details class="qa">
+        <summary>Is steering a general fix?</summary>
+        <p>
+          No. The safety priors were learned because they usually help: in ordinary games, risky moves rarely pay off. Puzzles are the
+          exception by design, since their solutions are often sacrifices. Even there, steering trades one error for another: the best
+          setting solves 519 more of the 10,000 puzzles but loses 129 that the network solved before. In ordinary play, weakening the
+          priors would likely cost more than it gains. We use steering to test what causes the override, not to repair it.
         </p>
       </details>
     </section>
 
     <section class="wrap prose" id="more">
       <h2>More results</h2>
-      <details class="more" open>
+      <details class="more" id="strength" open>
         <summary>Playing strength of every layer</summary>
-        <div id="elo-chart" class="elo"></div>
-        <p class="note">
-          Round-robin tournament between the policies read out at every layer (argmax play, 200 ECO openings), anchored to an Lc0 policy network.
-          Strength rises quickly through layer 5, plateaus until about layer 10 and climbs steeply in the last layers.
-        </p>
+        <figure class="figure figure--paper figure--side">
+          <picture><source media="(prefers-color-scheme: dark)" srcset="assets/figures/tournament_elos_dark.png" /><img src="assets/figures/tournament_elos.png" alt="Tournament Elo of the policy read out at each layer, with deterministic and with stochastic move selection. With argmax play it rises from 351 at the input to 2268 for the full network: quick gains through layer 5, a plateau until about layer 10, and a steep climb in the last layers. Sampled play follows the same shape about 200 to 900 points lower." loading="lazy" width="1436" height="1087" /></picture>
+          <figcaption>Round-robin tournament between the policies read out at every layer on 200 ECO openings, with <b class="cw-green">argmax play (τ&nbsp;=&nbsp;0)</b>
+            and <b class="cw-blue">sampled moves (τ&nbsp;=&nbsp;1)</b>. Ratings are anchored to the Lc0 policy network of <a href="https://openreview.net/forum?id=XlpipUGygX">Ruoss et al. (2024)</a>
+            at 2,292 Elo.
+            At both temperatures, strength rises quickly through layer 5, plateaus until about layer 10 and climbs steeply in the last layers.</figcaption>
+        </figure>
       </details>
       <details class="more" id="bots" open>
         <summary>Play against a layer</summary>
@@ -321,12 +451,11 @@
             </div>
             <p class="play__think"></p>
             <ol class="play__moves mono"></ol>
-            <a class="play__lichess" href="https://lichess.org/analysis" target="_blank" rel="noopener" hidden>Analyse the game on Lichess ↗</a>
+            <a class="play__lichess" href="https://lichess.org/analysis" target="_blank" rel="noopener" hidden>Analyze the game on Lichess ↗</a>
           </div>
         </div>
         <p class="note">
-          The layer plays like its Lichess bot, without search: it picks its first five moves at random according to its
-          policy, then always plays its most likely move. Its policy is computed on our server; after a quiet period the first
+          The layer plays like its Lichess bot, without search: it samples its first five moves from its policy, then always plays its most likely move. Its policy is computed on our server; after a quiet period the first
           move can take up to a minute.
         </p>
         <h3 class="play__or">Or challenge it on Lichess</h3>
@@ -340,7 +469,11 @@
       <details class="more">
         <summary>Solve rates by puzzle rating</summary>
         <figure class="figure figure--paper">
-          <img src="assets/figures/puzzle_solve_rates_by_rating.png" alt="Puzzle solve rate across layers, separately for puzzle rating bands; harder puzzles gain most in the final layers." loading="lazy" width="2400" height="1042" />
+          <div class="figure__pan"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/figures/puzzle_solve_rates_by_rating_dark.png" /><img src="assets/figures/puzzle_solve_rates_by_rating.png" alt="Puzzle solve rate across layers, separately for puzzle rating bands; harder puzzles gain most in the final layers." loading="lazy" width="2400" height="1042" /></picture></div>
+          <span class="figure__hint">Swipe the figure sideways to see all of it.</span>
+          <figcaption>Solve rate at each layer, with puzzles grouped by Lichess rating (<i>n</i> per group). <b class="cw-red">Red numbers</b>
+            compare how fast the solve rate rises in each phase, relative to the middle layers (1×). The harder the puzzles, the more of their
+            solve rate comes in the last layers: up to 24.8 times the middle-layer rate for puzzles rated 2200–3000.</figcaption>
         </figure>
       </details>
     </section>
@@ -355,6 +488,7 @@
   author    = {Sandmann, Elias and Lapuschkin, Sebastian and Samek, Wojciech},
   booktitle = {Advances in Neural Information Processing Systems},
   year      = {2026},
+  url       = {https://openreview.net/forum?id=ULhusDnCQy},
   eprint    = {2508.21380},
   archivePrefix = {arXiv}
 }</code></pre>
@@ -373,21 +507,23 @@
     <div class="wrap">
       <p>Elias Sandmann · Sebastian Lapuschkin · Wojciech Samek · Fraunhofer Heinrich Hertz Institute</p>
       <p class="small">Chess pieces by Colin M.L. Burnett (via python-chess). Board style follows the paper's figures.</p>
+      <p class="small"><a href="legal.html#imprint">Imprint</a> · <a href="legal.html#privacy">Privacy</a></p>
     </div>
   </footer>
 
-  <script src="data/pieces.js?v=20261030-20"></script>
-  <script src="data/index.js?v=20261030-20"></script>
-  <script src="data/steering_aggregates.js?v=20261030-20"></script>
-  <script src="data/figure2.js?v=20261030-20"></script>
-  <script src="assets/js/board.js?v=20261030-20"></script>
-  <script src="assets/js/steer-data.js?v=20261030-20"></script>
-  <script src="assets/js/lens-figure.js?v=20261030-20"></script>
-  <script src="assets/js/network-figure.js?v=20261030-20"></script>
-  <script src="assets/js/steer.js?v=20261030-20"></script>
-  <script src="assets/js/site.js?v=20261030-20"></script>
-  <script src="data/lc0-moves.js?v=20261030-20"></script>
-  <script src="assets/js/lc0-input.js?v=20261030-20"></script>
-  <script src="assets/js/play.js?v=20261030-20"></script>
+
+  <script src="data/pieces.js?v=20261111-01"></script>
+  <script src="data/index.js?v=20261111-01"></script>
+  <script src="data/steering_aggregates.js?v=20261111-01"></script>
+  <script src="data/figure2.js?v=20261111-01"></script>
+  <script src="assets/js/board.js?v=20261111-01"></script>
+  <script src="assets/js/steer-data.js?v=20261111-01"></script>
+  <script src="assets/js/lens-figure.js?v=20261111-01"></script>
+  <script src="assets/js/network-figure.js?v=20261111-01"></script>
+  <script src="assets/js/steer.js?v=20261111-01"></script>
+  <script src="assets/js/site.js?v=20261111-01"></script>
+  <script src="data/lc0-moves.js?v=20261111-01"></script>
+  <script src="assets/js/lc0-input.js?v=20261111-01"></script>
+  <script src="assets/js/play.js?v=20261111-01"></script>
 </body>
 </html>

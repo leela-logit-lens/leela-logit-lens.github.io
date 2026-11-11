@@ -3,12 +3,13 @@
 (function () {
   // anti: sign of the raw strength that steers AGAINST the safety prior, i.e. reverses the
   // concept's late-layer shift in Fig 6 (left). The paper's headline setting is threats (opp.) at -0.5.
+  // in the order and colours of Finding 3's figure legend (the paper's concept colours), random in the figure's grey
   const CONCEPTS = [
-    { key: "king_safety_opponent_ph", label: "King safety (opp.)", anti: +1 },
-    { key: "threats_opponent_ph", label: "Threats (opp.)", anti: -1, paper: true },
-    { key: "threats_mine_ph", label: "Threats (mine)", anti: +1 },
-    { key: "king_safety_mine_ph", label: "King safety (mine)", anti: -1 },
-    { key: "random", label: "Random direction", anti: +1, note: "same norm" },
+    { key: "king_safety_opponent_ph", label: "King safety (opp.)", anti: +1, color: "var(--cw-orange)" },
+    { key: "threats_mine_ph", label: "Threats (mine)", anti: +1, color: "var(--cw-pink)" },
+    { key: "king_safety_mine_ph", label: "King safety (mine)", anti: -1, color: "var(--cw-blue)" },
+    { key: "threats_opponent_ph", label: "Threats (opp.)", anti: -1, paper: true, color: "var(--cw-green)" },
+    { key: "random", label: "Random direction", anti: +1, note: "same norm", color: "var(--cw-gray)" },
   ];
   const BY_KEY = Object.fromEntries(CONCEPTS.map((c) => [c.key, c]));
   const LEVELS = [-1, -0.75, -0.5, -0.25, 0, 0.25, 0.5, 0.75, 1]; // in "against the prior" units
